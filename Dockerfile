@@ -11,4 +11,4 @@ RUN python3.8 -m pip install -r ./requirements.txt
 COPY --chown=app ./unip-autoscaler /home/app/unip-autoscaler
 USER app
 
-CMD ["uvicorn", "unip-autoscaler.main:app", "--host", "0.0.0.0", "--port", "80"]
+CMD ["uvicorn", "unip-autoscaler.main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -18,7 +18,7 @@ spec:
       serviceAccountName: unip-autoscaler
       containers:
         - name: unip-autoscaler
-          image: mlops-reg.event33.ru/registry-user/unip-autoscaler:v1
+          image: mlops-reg.event33.ru/registry-user/unip-autoscaler:140b692
           imagePullPolicy: Always
       imagePullSecrets:
         - name: registry-credentials
