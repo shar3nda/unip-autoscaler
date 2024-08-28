@@ -105,13 +105,13 @@ def hibernate_deployment(name:str, namespace:str):
 
     rewriteTarget = ingress.metadata.annotations.get("nginx.ingress.kubernetes.io/rewrite-target")
 
-    additionalHeaders = """#<AUTOSCALER HEADERS
+    additionalHeaders = f"""#{settings.AUTOSCALER_HEADERS_PREFIX}
 proxy_set_header AUTOSCALER_APP_NAMESPACE %s;
 proxy_set_header AUTOSCALER_APP_DEPLOYMENT %s;
 proxy_set_header AUTOSCALER_APP_SERVICE %s;
 proxy_set_header AUTOSCALER_APP_INGRESS %s;
 proxy_set_header AUTOSCALER_APP_INGRESS_REWRITE %s;
-#AUTOSCALER HEADERS>""" % (
+#{settings.AUTOSCALER_HEADERS_SUFFIX}""" % (
                         namespace,
                         deployment.metadata.name,
                         service.metadata.name,
@@ -138,7 +138,7 @@ def wakeup_ingress(namespace:str, serviceName:str, ingName:str, rewriteRule:str)
                 path.backend.service.name = serviceName
 
     nginxConfig = ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"]
-    nginxConfig = re.sub(r'{}.*?{}'.format(re.escape("#<AUTOSCALER HEADERS"), re.escape("#AUTOSCALER HEADERS>")), '', nginxConfig)
+    nginxConfig = re.sub(r'{}.*?{}'.format(re.escape(f"#{settings.AUTOSCALER_HEADERS_PREFIX}"), re.escape(f"#{settings.AUTOSCALER_HEADERS_SUFFIX}")), '', nginxConfig)
     ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = nginxConfig
     ingress.metadata.annotations["nginx.ingress.kubernetes.io/rewrite-target"] = rewriteRule
 

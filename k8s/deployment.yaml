@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unip-autoscaler
+  namespace: unip-autoscaler
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unip-autoscaler
+  template:
+    metadata:
+      labels:
+        app: unip-autoscaler
+    spec:
+      serviceAccountName: unip-autoscaler
+      containers:
+        - name: unip-autoscaler
+          image: mlops-reg.event33.ru/registry-user/unip-autoscaler:v1
+          imagePullPolicy: Always
+      imagePullSecrets:
+        - name: registry-credentials
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unip-autoscaler
+  namespace: unip-autoscaler
+spec:
+  selector:
+    app: unip-autoscaler
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: unip-autoscaler-ingress
+  namespace: unip-autoscaler
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - mlops.event33.ru
+  rules:
+    - host: mlops.event33.ru
+      http:
+        paths:
+          - path: /autoscaler(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: unip-autoscaler
+                port:
+                  number: 80

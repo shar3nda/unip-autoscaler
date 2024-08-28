@@ -12,11 +12,5 @@ async def root():
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def wakeup(request: Request, path: str):
-    #return JSONResponse(status_code=404, content={"detail": f"Path '{path}' not found"})
-    response = {
-        "path": path,
-        "headers": request.headers.items(),
-        #"body": body,
-        "test": 'test'
-    }
+    print(path)
     return JSONResponse(status_code = 307, content = "")
