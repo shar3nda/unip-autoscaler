@@ -1,8 +1,10 @@
 from kubernetes import client, config
-from kubernetes.client import V1Deployment, V1DeploymentSpec, ApiException, V1Service
-from pydantic import BaseModel
-import settings
+from kubernetes.client import V1Deployment, ApiException, V1Service
 import re
+import base64
+from .settings import *
+from . import *
+
 
 
 def get_deployment(name:str, namespace:str):
@@ -25,7 +27,7 @@ def get_service_by_deployment(dep: V1Deployment):
     srvcs = list(filter(
         lambda srvc: srvc.spec.type == 'ClusterIP'
                      and srvc.spec.selector is not None
-                     and srvc.spec.selector[settings.AUTOSCALER_APP_SELECTOR_NAME] == dep_labels[settings.AUTOSCALER_APP_SELECTOR_NAME],
+                     and srvc.spec.selector[AUTOSCALER_APP_SELECTOR_NAME] == dep_labels[AUTOSCALER_APP_SELECTOR_NAME],
         srvcs.items
     ))
 
@@ -49,7 +51,7 @@ def get_hibernated_service(srvc: V1Service):
     if srvc is not None and srvc.spec.type == 'ClusterIP':
         try:
             hibernatedService = coreV1API.read_namespaced_service(
-                name = srvc.metadata.name + settings.AUTOSCALER_HIBERNATED_SERVICE_SUFFIX,
+                name = srvc.metadata.name + AUTOSCALER_HIBERNATED_SERVICE_SUFFIX,
                 namespace = srvc.metadata.namespace
             )
         except ApiException as e:
@@ -63,11 +65,11 @@ def create_hibernated_service(srvc: V1Service):
     hibernatedService = None
     if srvc is not None and srvc.spec.type == 'ClusterIP':
         metadata = client.V1ObjectMeta(
-            name = srvc.metadata.name + settings.AUTOSCALER_HIBERNATED_SERVICE_SUFFIX,
+            name = srvc.metadata.name + AUTOSCALER_HIBERNATED_SERVICE_SUFFIX,
         )
         spec = client.V1ServiceSpec(
             type = "ExternalName",
-            external_name = settings.AUTOSCALER_SERVICE_EXTERNAL_NAME
+            external_name = AUTOSCALER_SERVICE_EXTERNAL_NAME
         )
         hibernatedService = client.V1Service(
             metadata = metadata,
@@ -106,25 +108,26 @@ def hibernate_deployment(name:str, namespace:str):
                 path.backend.service.name = hibernatedService.metadata.name
 
     rewriteTarget = ingress.metadata.annotations.get("nginx.ingress.kubernetes.io/rewrite-target")
+    rewriteTarget = base64.b64encode(f"{rewriteTarget}".encode("utf-8")).decode("utf-8")
 
-    additionalHeaders = f"""#{settings.AUTOSCALER_HEADERS_PREFIX}
+    additionalHeaders = f"""\n#{AUTOSCALER_HEADERS_PREFIX}
 proxy_set_header AUTOSCALER_APP_NAMESPACE %s;
 proxy_set_header AUTOSCALER_APP_DEPLOYMENT %s;
 proxy_set_header AUTOSCALER_APP_SERVICE %s;
 proxy_set_header AUTOSCALER_APP_INGRESS %s;
 proxy_set_header AUTOSCALER_APP_INGRESS_REWRITE %s;
-#{settings.AUTOSCALER_HEADERS_SUFFIX}""" % (
+#{AUTOSCALER_HEADERS_SUFFIX}""" % (
                         namespace,
                         deployment.metadata.name,
                         service.metadata.name,
                         ingress.metadata.name,
                         rewriteTarget)
-
+    print(additionalHeaders)
     nginxConfig = ingress.metadata.annotations.get("nginx.ingress.kubernetes.io/configuration-snippet") + additionalHeaders
     ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = nginxConfig
     del ingress.metadata.annotations["nginx.ingress.kubernetes.io/rewrite-target"]
 
-    ingress = networkingV1Api.replace_namespaced_ingress(
+    networkingV1Api.replace_namespaced_ingress(
         name = ingress.metadata.name,
         namespace = ingress.metadata.namespace,
         body = ingress
@@ -136,11 +139,11 @@ def wakeup_ingress(namespace:str, serviceName:str, ingName:str, rewriteRule:str)
     ingress = networkingV1Api.read_namespaced_ingress(namespace = namespace, name = ingName)
     for rule in ingress.spec.rules:
         for path in rule.http.paths:
-            if path.backend.service == serviceName + settings.AUTOSCALER_HIBERNATED_SERVICE_SUFFIX:
+            if path.backend.service == serviceName + AUTOSCALER_HIBERNATED_SERVICE_SUFFIX:
                 path.backend.service.name = serviceName
 
     nginxConfig = ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"]
-    nginxConfig = re.sub(r'{}.*?{}'.format(re.escape(f"#{settings.AUTOSCALER_HEADERS_PREFIX}"), re.escape(f"#{settings.AUTOSCALER_HEADERS_SUFFIX}")), '', nginxConfig)
+    nginxConfig = re.sub(r'{}.*?{}'.format(re.escape(f"\n#{AUTOSCALER_HEADERS_PREFIX}"), re.escape(f"#{AUTOSCALER_HEADERS_SUFFIX}")), '', nginxConfig)
     ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = nginxConfig
     ingress.metadata.annotations["nginx.ingress.kubernetes.io/rewrite-target"] = rewriteRule
 
@@ -172,16 +175,3 @@ def is_any_pod_ready(srvc: V1Service):
         return False
     except ApiException as e:
         return False
-
-
-config.load_kube_config()
-coreV1API = client.CoreV1Api()
-appsV1Api = client.AppsV1Api()
-networkingV1Api = client.NetworkingV1Api()
-
-
-if __name__ == "__main__":
-    hibernate_deployment(
-        name='module-example-mlcmp-deployment',
-        namespace = 'pu-test-pa-module-example'
-    )
