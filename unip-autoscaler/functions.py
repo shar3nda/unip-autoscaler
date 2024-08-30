@@ -1,5 +1,6 @@
 from kubernetes import client, config
 from kubernetes.client import V1Deployment, V1DeploymentSpec, ApiException, V1Service
+from pydantic import BaseModel
 import settings
 import re
 
@@ -90,6 +91,7 @@ def scale_deployment(dep:V1Deployment, replicas:int):
         print(f"Scaling Deployment error: {e}")
     except Exception as e:
         print(f"Error: {e}")
+    return ""
 
 
 def hibernate_deployment(name:str, namespace:str):
