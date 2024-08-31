@@ -1,4 +1,6 @@
 .venv
 .idea
 *-secret.yaml
+*/__pycache__/*
+**/*local*.py
 *test.py
