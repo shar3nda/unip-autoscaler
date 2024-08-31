@@ -9,9 +9,28 @@ from . import *
 
 def get_deployment(name:str, namespace:str):
     return appsV1Api.read_namespaced_deployment(
-        name=name,
-        namespace=namespace
+        name = name,
+        namespace = namespace
     )
+
+def check_readiness_probe(dep: V1Deployment, srvc: V1Service):
+    if dep and dep.spec.template.metadata.labels[AUTOSCALER_APP_SELECTOR_NAME] == srvc.spec.selector[AUTOSCALER_APP_SELECTOR_NAME]:
+        container = dep.spec.template.spec.containers[0]
+        if not container.readiness_probe:
+            readiness_probe = client.V1Probe(
+                tcp_socket = client.V1TCPSocketAction(
+                    port = srvc.spec.ports[0].target_port
+                ),
+                initial_delay_seconds = AUTOSCALER_READINESS_PROBE_INITIAL_DELAY,
+                period_seconds = AUTOSCALER_READINESS_PROBE_PERIOD,
+                failure_threshold = AUTOSCALER_READINESS_PROBE_FAILURE_THRESHOLD
+            )
+            container.readiness_probe = readiness_probe
+            appsV1Api.patch_namespaced_deployment(
+                name = dep.metadata.name,
+                namespace = dep.metadata.namespace,
+                body = dep
+            )
 
 
 def get_service(name:str, namespace:str):
@@ -110,7 +129,8 @@ def hibernate_deployment(name:str, namespace:str):
     rewriteTarget = ingress.metadata.annotations.get("nginx.ingress.kubernetes.io/rewrite-target")
     rewriteTarget = base64.b64encode(f"{rewriteTarget}".encode("utf-8")).decode("utf-8")
 
-    additionalHeaders = f"""\n#{AUTOSCALER_HEADERS_PREFIX}
+    additionalHeaders = f"""
+#{AUTOSCALER_HEADERS_PREFIX}
 proxy_set_header AUTOSCALER_APP_NAMESPACE %s;
 proxy_set_header AUTOSCALER_APP_DEPLOYMENT %s;
 proxy_set_header AUTOSCALER_APP_SERVICE %s;
@@ -122,7 +142,6 @@ proxy_set_header AUTOSCALER_APP_INGRESS_REWRITE %s;
                         service.metadata.name,
                         ingress.metadata.name,
                         rewriteTarget)
-    print(additionalHeaders)
     nginxConfig = ingress.metadata.annotations.get("nginx.ingress.kubernetes.io/configuration-snippet") + additionalHeaders
     ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = nginxConfig
     del ingress.metadata.annotations["nginx.ingress.kubernetes.io/rewrite-target"]
@@ -136,14 +155,16 @@ proxy_set_header AUTOSCALER_APP_INGRESS_REWRITE %s;
     return scale_deployment(dep = deployment, replicas = 0)
 
 def wakeup_ingress(namespace:str, serviceName:str, ingName:str, rewriteRule:str):
+    print("wakeup_ingress")
     ingress = networkingV1Api.read_namespaced_ingress(namespace = namespace, name = ingName)
     for rule in ingress.spec.rules:
         for path in rule.http.paths:
-            if path.backend.service == serviceName + AUTOSCALER_HIBERNATED_SERVICE_SUFFIX:
+            if path.backend.service.name == serviceName + AUTOSCALER_HIBERNATED_SERVICE_SUFFIX:
                 path.backend.service.name = serviceName
 
     nginxConfig = ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"]
-    nginxConfig = re.sub(r'{}.*?{}'.format(re.escape(f"\n#{AUTOSCALER_HEADERS_PREFIX}"), re.escape(f"#{AUTOSCALER_HEADERS_SUFFIX}")), '', nginxConfig)
+    pattern = '{}.*?{}'.format(f"#{AUTOSCALER_HEADERS_PREFIX}", f"#{AUTOSCALER_HEADERS_SUFFIX}")
+    nginxConfig = re.sub(pattern, '', nginxConfig, flags=re.DOTALL).strip()
     ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = nginxConfig
     ingress.metadata.annotations["nginx.ingress.kubernetes.io/rewrite-target"] = rewriteRule
 

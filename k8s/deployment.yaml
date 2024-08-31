@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: unip-autoscaler
-  namespace: unip-autoscaler
+  namespace: unip-system-autoscaler
 spec:
   replicas: 1
   strategy:
@@ -20,6 +20,13 @@ spec:
         - name: unip-autoscaler
           image: mlops-reg.event33.ru/registry-user/unip-autoscaler:v1
           imagePullPolicy: Always
+          env:
+            - name: AUTOSCALER_READINESS_PROBE_TIMEOUT
+              value: "15"
+            - name: AUTOSCALER_READINESS_LIMIT
+              value: "30"
+            - name: AUTOSCALER_READINESS_TIMEOUT
+              value: "1"
       imagePullSecrets:
         - name: registry-credentials
 ---
@@ -27,7 +34,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: unip-autoscaler
-  namespace: unip-autoscaler
+  namespace: unip-system-autoscaler
 spec:
   selector:
     app: unip-autoscaler
@@ -40,7 +47,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: unip-autoscaler-ingress
-  namespace: unip-autoscaler
+  namespace: unip-system-autoscaler
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
