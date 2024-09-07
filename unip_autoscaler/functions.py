@@ -1,9 +1,18 @@
-from kubernetes import client, config
+from kubernetes import client
 from kubernetes.client import V1Deployment, ApiException, V1Service
 import re
 import base64
-from .settings import *
-from . import *
+from .settings import (
+    AUTOSCALER_APP_SELECTOR_NAME,
+    AUTOSCALER_READINESS_PROBE_INITIAL_DELAY,
+    AUTOSCALER_READINESS_PROBE_PERIOD,
+    AUTOSCALER_READINESS_PROBE_FAILURE_THRESHOLD,
+    AUTOSCALER_HIBERNATED_SERVICE_SUFFIX,
+    AUTOSCALER_SERVICE_EXTERNAL_NAME,
+    AUTOSCALER_HEADERS_PREFIX,
+    AUTOSCALER_HEADERS_SUFFIX,
+)
+from .settings import coreV1API, appsV1Api, networkingV1Api
 
 
 async def get_deployment(name: str, namespace: str):

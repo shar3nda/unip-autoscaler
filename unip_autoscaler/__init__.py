@@ -2,9 +2,9 @@ from kubernetes_asyncio import client, config  # меняем на асинхр�
 from kubernetes.config import ConfigException
 
 try:
-    await config.load_incluster_config()
+    config.load_incluster_config()
 except ConfigException as e:
-    await config.load_kube_config()
+    config.load_kube_config()
 
 coreV1API = client.CoreV1Api()
 appsV1Api = client.AppsV1Api()

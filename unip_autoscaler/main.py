@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import time
 from fastapi import FastAPI, Header
 from typing_extensions import Annotated
 from typing import Union
@@ -8,7 +7,17 @@ from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
-from .functions import *
+from .functions import (
+    get_deployment,
+    check_readiness_probe,
+    get_service,
+    is_service_ready,
+    wakeup_ingress,
+    hibernate_deployment,
+    scale_deployment
+)
+from .settings import AUTOSCALER_READINESS_LIMIT, AUTOSCALER_READINESS_TIMEOUT
+
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -21,7 +30,7 @@ class Deployment(BaseModel):
 @app.post("/hibernate")
 async def hibernate(deployment:Deployment):
     print(f"Hibernating deployment {deployment.name}")
-    return hibernate_deployment(deployment.name, deployment.namespace)
+    return await hibernate_deployment(deployment.name, deployment.namespace)
 
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
