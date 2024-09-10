@@ -12,7 +12,7 @@ from .settings import (
     AUTOSCALER_HEADERS_PREFIX,
     AUTOSCALER_HEADERS_SUFFIX,
 )
-from .settings import coreV1API, appsV1Api, networkingV1Api
+from .__init__ import coreV1API, appsV1Api, networkingV1Api
 
 
 async def get_deployment(name: str, namespace: str):
