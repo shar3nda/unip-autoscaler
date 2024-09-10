@@ -1,6 +1,5 @@
-from kubernetes import client, config
+from kubernetes_asyncio import client, config  # меняем на асинхронную версию
 from kubernetes.config import ConfigException
-
 
 try:
     config.load_incluster_config()
