@@ -27,6 +27,11 @@ class Deployment(BaseModel):
     name:str
 
 
+@app.post("/alert")
+def alert():
+    return ""
+
+
 @app.post("/hibernate")
 async def hibernate(deployment:Deployment):
     print(f"Hibernating deployment {deployment.name}")
