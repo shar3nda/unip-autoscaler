@@ -145,7 +145,8 @@ async def hibernate_deployment(name: str, namespace: str):
     service = await get_service_by_deployment(deployment)
     ingress = await get_ingress_by_service(service)
     hibernatedService = await get_hibernated_service(service)
-    for rule in ingress.spec.rules:
+    updated_rules = ingress.spec.rules
+    for rule in updated_rules:
         for path in rule.http.paths:
             if path.backend.service.name == service.metadata.name:
                 path.backend.service.name = hibernatedService.metadata.name
@@ -168,15 +169,17 @@ proxy_set_header AUTOSCALER_APP_INGRESS_REWRITE %s;
         rewriteTarget)
     nginxConfig = ingress.metadata.annotations.get(
         "nginx.ingress.kubernetes.io/configuration-snippet") + additionalHeaders
-    ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = nginxConfig
-    del ingress.metadata.annotations["nginx.ingress.kubernetes.io/rewrite-target"]
-
+    new_annotations = {
+        "nginx.ingress.kubernetes.io/configuration-snippet": nginxConfig,
+        "nginx.ingress.kubernetes.io/rewrite-target": None
+    }
     lock = await get_resource_lock(namespace, ingress.metadata.name, "ingress")
     async with lock:
-        await networkingV1Api.replace_namespaced_ingress(
-            name=ingress.metadata.name,
-            namespace=ingress.metadata.namespace,
-            body=ingress
+        await patch_ingress(
+            namespace=namespace,
+            ingName=ingress.metadata.name,
+            new_annotations=new_annotations,
+            updated_rules=updated_rules
         )
 
     return await scale_deployment(dep=deployment, replicas=0)
