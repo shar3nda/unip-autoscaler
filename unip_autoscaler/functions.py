@@ -122,8 +122,6 @@ async def create_hibernated_service(srvc: V1Service):
 
 
 async def scale_deployment(dep: V1Deployment, replicas: int):
-    #print("AAAAAAAAAAAAAAAAAAAAA", "REPLICAS: ", replicas, "DEPLOYMENT: ", dep)
-
     lock = await get_resource_lock(dep.metadata.namespace, dep.metadata.name, "deployment")
 
     async with lock:
@@ -147,7 +145,6 @@ async def hibernate_deployment(name: str, namespace: str):
     service = await get_service_by_deployment(deployment)
     ingress = await get_ingress_by_service(service)
     hibernatedService = await get_hibernated_service(service)
-    # print("HIBERNATE_DEPLOYMENT ", "DEPLOYMENT: ", deployment, "SERVICE: ", service, "INGRESS: ", ingress, "HIBERNATEDSERVICE: ", hibernatedService)
     for rule in ingress.spec.rules:
         for path in rule.http.paths:
             if path.backend.service.name == service.metadata.name:
@@ -185,41 +182,46 @@ proxy_set_header AUTOSCALER_APP_INGRESS_REWRITE %s;
     return await scale_deployment(dep=deployment, replicas=0)
 
 
-async def patch_ingress(namespace: str, ingName: str, new_annotations: dict):
-    lock = await get_resource_lock(namespace, ingName, "ingress")
-    async with lock:
-        print("Patching ingress")
-        ingress_patch = {
-            "metadata": {
-                "annotations": new_annotations
-            }
+async def patch_ingress(namespace: str, ingName: str, new_annotations: dict, updated_rules):
+    print("PATCHING INGRESS")
+    ingress_patch = {
+        "metadata": {
+            "annotations": new_annotations
+        },
+        "spec": {
+            "rules": updated_rules
         }
-        return await networkingV1Api.patch_namespaced_ingress( # тут вроде как делается merge patch, который должен затронуть только указанные в new_annotations аннотации
-            name=ingName,
-            namespace=namespace,
-            body=ingress_patch
-        )
+    }
+    return await networkingV1Api.patch_namespaced_ingress(
+        name=ingName,
+        namespace=namespace,
+        body=ingress_patch
+    )
 
 
 async def wakeup_ingress(namespace: str, serviceName: str, ingName: str, rewriteRule: str):
-    print("wakeup_ingress")
-    ingress = await networkingV1Api.read_namespaced_ingress(namespace=namespace, name=ingName)
-    for rule in ingress.spec.rules:
-        for path in rule.http.paths:
-            if path.backend.service.name == serviceName + AUTOSCALER_HIBERNATED_SERVICE_SUFFIX:
-                path.backend.service.name = serviceName
+    lock = await get_resource_lock(namespace, ingName, "ingress")
+    async with lock:
+        print("wakeup_ingress")
+        ingress = await networkingV1Api.read_namespaced_ingress(namespace=namespace, name=ingName)
 
-    nginxConfig = ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"]
-    pattern = '{}.*?{}'.format(f"#{AUTOSCALER_HEADERS_PREFIX}", f"#{AUTOSCALER_HEADERS_SUFFIX}")
-    nginxConfig = re.sub(pattern, '', nginxConfig, flags=re.DOTALL).strip()
-    ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = nginxConfig
-    ingress.metadata.annotations["nginx.ingress.kubernetes.io/rewrite-target"] = rewriteRule
+        updated_rules = ingress.spec.rules
+        for rule in updated_rules:
+            for path in rule.http.paths:
+                if path.backend.service.name == serviceName + AUTOSCALER_HIBERNATED_SERVICE_SUFFIX:
+                    path.backend.service.name = serviceName
 
-    return await networkingV1Api.replace_namespaced_ingress(
-        name=ingress.metadata.name,
-        namespace=ingress.metadata.namespace,
-        body=ingress
-    )
+        nginxConfig = ingress.metadata.annotations["nginx.ingress.kubernetes.io/configuration-snippet"]
+        pattern = '{}.*?{}'.format(f"#{AUTOSCALER_HEADERS_PREFIX}", f"#{AUTOSCALER_HEADERS_SUFFIX}")
+        nginxConfig = re.sub(pattern, '', nginxConfig, flags=re.DOTALL).strip()
+        new_annotations = {
+            "nginx.ingress.kubernetes.io/configuration-snippet": nginxConfig,
+            "nginx.ingress.kubernetes.io/rewrite-target": rewriteRule
+        }
+
+        await patch_ingress(namespace=namespace, ingName=ingName, new_annotations=new_annotations,
+                            updated_rules=updated_rules)
+        print("INGRESS PATCHED")
 
 
 async def is_service_ready(namespace: str, name: str):
