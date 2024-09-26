@@ -1,5 +1,5 @@
 from kubernetes import client
-from kubernetes.client import V1Deployment, ApiException, V1Service
+from kubernetes.client import V1Deployment, ApiException, V1Service, V1Ingress
 import re
 import base64
 
@@ -66,6 +66,27 @@ async def get_service_by_deployment(dep: V1Deployment):
     ))
 
     return srvcs[0]  # Предполагаем, что найден хотя бы один сервис
+
+
+async def get_deployment_by_service(service: V1Service):
+    service_labels = service.spec.selector  # Получаем метки из селектора сервиса
+
+    if not service_labels:
+        raise ValueError("У сервиса отсутствуют метки для селектора")
+
+    # Ищем деплойменты в том же namespace
+    deployments = await appsV1Api.list_namespaced_deployment(service.metadata.namespace)
+
+    matching_deployments = list(filter(
+        lambda dep: dep.spec.selector.match_labels.get(AUTOSCALER_APP_SELECTOR_NAME) == service_labels.get(
+            AUTOSCALER_APP_SELECTOR_NAME),
+        deployments.items
+    ))
+
+    if not matching_deployments:
+        raise ValueError("Соответствующий деплоймент не найден")
+
+    return matching_deployments[0]
 
 
 async def get_ingress_by_service(srvc: V1Service):
@@ -139,10 +160,21 @@ async def scale_deployment(dep: V1Deployment, replicas: int):
         print("Deployment Scaled Successfully")
         return ""
 
+async def hibernate_by_service(namespace: str, service: str):
+    service = await get_service(service, namespace)
+    deployment = await get_deployment_by_service(service)
+    return await hibernate(deployment, service, namespace)
 
-async def hibernate_deployment(name: str, namespace: str):
+
+async def hibernate_by_deployment(name: str, namespace: str):
     deployment = await get_deployment(name=name, namespace=namespace)
     service = await get_service_by_deployment(deployment)
+    return await hibernate(deployment, service, namespace)
+
+
+
+
+async def hibernate(deployment: V1Deployment, service: V1Service, namespace: str):
     ingress = await get_ingress_by_service(service)
     hibernatedService = await get_hibernated_service(service)
     updated_rules = ingress.spec.rules
