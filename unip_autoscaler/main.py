@@ -40,7 +40,7 @@ async def alert(alert: AlertRequestModel):
     namespace = alert.commonAnnotations.namespace
     service = alert.commonAnnotations.service
     print("ALERT: ", namespace, service)
-    if namespace == "pu-test-pa-module-example":
+    if service == "module-example-mlcmp-svc":
         return await hibernate_by_service(namespace, service)
     else:
         return ""

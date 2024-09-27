@@ -72,7 +72,7 @@ async def get_deployment_by_service(service: V1Service):
     service_labels = service.spec.selector  # Получаем метки из селектора сервиса
 
     if not service_labels:
-        raise ValueError("У сервиса отсутствуют метки для селектора")
+        raise ValueError("Service is missing labels")
 
     # Ищем деплойменты в том же namespace
     deployments = await appsV1Api.list_namespaced_deployment(service.metadata.namespace)
@@ -84,7 +84,7 @@ async def get_deployment_by_service(service: V1Service):
     ))
 
     if not matching_deployments:
-        raise ValueError("Соответствующий деплоймент не найден")
+        raise ValueError("Deployment not found")
 
     return matching_deployments[0]
 
@@ -162,6 +162,9 @@ async def scale_deployment(dep: V1Deployment, replicas: int):
 
 async def hibernate_by_service(namespace: str, service: str):
     service = await get_service(service, namespace)
+    if service.spec.type == 'ExternalName':
+        print("ExternalName service encountered")
+        return ""
     deployment = await get_deployment_by_service(service)
     return await hibernate(deployment, service, namespace)
 
@@ -176,6 +179,9 @@ async def hibernate_by_deployment(name: str, namespace: str):
 
 async def hibernate(deployment: V1Deployment, service: V1Service, namespace: str):
     ingress = await get_ingress_by_service(service)
+    if ingress is None and deployment is not None and service is not None:
+        print("Ingress not found, ", namespace, " is probably already hibernated")
+        return ""
     hibernatedService = await get_hibernated_service(service)
     updated_rules = ingress.spec.rules
     for rule in updated_rules:
