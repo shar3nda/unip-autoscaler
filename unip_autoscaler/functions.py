@@ -25,27 +25,38 @@ async def get_deployment(name: str, namespace: str):
 
 
 async def check_readiness_probe(dep: V1Deployment, srvc: V1Service):
-
-    lock = await get_resource_lock(dep.metadata.namespace, dep.metadata.name, "deployment")
-    async with lock:
-        if dep and dep.spec.template.metadata.labels[AUTOSCALER_APP_SELECTOR_NAME] == srvc.spec.selector[
-            AUTOSCALER_APP_SELECTOR_NAME]:
-            container = dep.spec.template.spec.containers[0]
-            if not container.readiness_probe:
-                readiness_probe = client.V1Probe(
-                    tcp_socket=client.V1TCPSocketAction(
-                        port=srvc.spec.ports[0].target_port
-                    ),
-                    initial_delay_seconds=AUTOSCALER_READINESS_PROBE_INITIAL_DELAY,
-                    period_seconds=AUTOSCALER_READINESS_PROBE_PERIOD,
-                    failure_threshold=AUTOSCALER_READINESS_PROBE_FAILURE_THRESHOLD
-                )
-                container.readiness_probe = readiness_probe
-                await appsV1Api.patch_namespaced_deployment(
-                    name=dep.metadata.name,
-                    namespace=dep.metadata.namespace,
-                    body=dep
-                )
+        lock = await get_resource_lock(dep.metadata.namespace, dep.metadata.name, "deployment")
+        async with lock:
+            if dep and dep.spec.template.metadata.labels[AUTOSCALER_APP_SELECTOR_NAME] == srvc.spec.selector[
+                AUTOSCALER_APP_SELECTOR_NAME]:
+                container = dep.spec.template.spec.containers[0]
+                if not container.readiness_probe:
+                    readiness_probe = client.V1Probe(
+                        tcp_socket=client.V1TCPSocketAction(
+                            port=srvc.spec.ports[0].target_port
+                        ),
+                        initial_delay_seconds=AUTOSCALER_READINESS_PROBE_INITIAL_DELAY,
+                        period_seconds=AUTOSCALER_READINESS_PROBE_PERIOD,
+                        failure_threshold=AUTOSCALER_READINESS_PROBE_FAILURE_THRESHOLD
+                    )
+                    print("CONTAINER_NAME: ", container.name)
+                    patch_body = {
+                        "spec": {
+                            "template": {
+                                "spec": {
+                                    "containers": [{
+                                        "name": container.name, # Это используется как идентификатор, а не меняет имя контейнера
+                                        "readinessProbe": readiness_probe
+                                    }]
+                                }
+                            }
+                        }
+                    }
+                    await appsV1Api.patch_namespaced_deployment(
+                        name=dep.metadata.name,
+                        namespace=dep.metadata.namespace,
+                        body=patch_body
+                    )
 
 
 async def get_service(name: str, namespace: str):
@@ -113,11 +124,17 @@ async def get_hibernated_service(srvc: V1Service):
                     name=srvc.metadata.name + AUTOSCALER_HIBERNATED_SERVICE_SUFFIX,
                     namespace=srvc.metadata.namespace
                 )
-            except ApiException as e:
-                if e.status == 404:
-                    hibernatedService = await create_hibernated_service(srvc)
+            # except ApiException as e:
+            #     if e.status == 404:
+            #         print("EXCEPTION TYPE: APIEXCEPTION")
+            #         hibernatedService = await create_hibernated_service(srvc)
             except Exception as e:
-                print(f"Error: {e}")
+                if type(e).__name__ == "ApiException" and e.status == 404:
+                    print("CREATING HIBERNATED SERVICE")
+                    hibernatedService = await create_hibernated_service(srvc)
+                #print("get_hibernated_service EXCEPTION TYPE: ",type(e).__name__)
+                else:
+                    print(f"Error: {e}")
         return hibernatedService
 
 
@@ -162,7 +179,8 @@ async def scale_deployment(dep: V1Deployment, replicas: int):
 
 async def hibernate_by_service(namespace: str, service: str):
     service = await get_service(service, namespace)
-    if service.spec.type == 'ExternalName':
+    print("SERVICE TYPE: ", service.spec.type)
+    if service.spec.type == "ExternalName":
         print("ExternalName service encountered")
         return ""
     deployment = await get_deployment_by_service(service)

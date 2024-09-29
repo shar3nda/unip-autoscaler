@@ -40,10 +40,9 @@ async def alert(alert: AlertRequestModel):
     namespace = alert.commonAnnotations.namespace
     service = alert.commonAnnotations.service
     print("ALERT: ", namespace, service)
-    if service == "module-example-mlcmp-svc":
-        return await hibernate_by_service(namespace, service)
-    else:
-        return ""
+    # if service == "module-example-mlcmp-svc":
+    return await hibernate_by_service(namespace, service)
+
 
 
 @app.post("/hibernate")
