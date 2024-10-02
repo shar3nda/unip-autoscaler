@@ -13,8 +13,9 @@ from .functions import (
     get_service,
     is_service_ready,
     wakeup_ingress,
-    hibernate_deployment,
-    scale_deployment
+    hibernate_by_deployment,
+    scale_deployment,
+    hibernate_by_service
 )
 from .settings import AUTOSCALER_READINESS_LIMIT, AUTOSCALER_READINESS_TIMEOUT
 
@@ -26,11 +27,28 @@ class Deployment(BaseModel):
     namespace:str
     name:str
 
+class AnnotationsModel(BaseModel):
+    namespace: str
+    service: str
+
+class AlertRequestModel(BaseModel):
+    commonAnnotations: AnnotationsModel
+
+
+@app.post("/alert")
+async def alert(alert: AlertRequestModel):
+    namespace = alert.commonAnnotations.namespace
+    service = alert.commonAnnotations.service
+    print("ALERT: ", namespace, service)
+    # if service == "module-example-mlcmp-svc":
+    return await hibernate_by_service(namespace, service)
+
+
 
 @app.post("/hibernate")
 async def hibernate(deployment:Deployment):
     print(f"Hibernating deployment {deployment.name}")
-    return await hibernate_deployment(deployment.name, deployment.namespace)
+    return await hibernate_by_deployment(deployment.name, deployment.namespace)
 
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
