@@ -87,7 +87,14 @@ async def wakeup(path: str,  request: Request,
     for i in range(AUTOSCALER_READINESS_LIMIT):
         if AUTOSCALER_READINESS_TIMEOUT * i * 1.2 >= max_timeout:
             logger.info(f"Timeout reached {max_timeout}")
-            break
+
+            url_parts = list(urlparse(str(request.url)))
+            query = dict(parse_qsl(url_parts[4]))
+            query.update({"retries": current_retries})
+            url_parts[4] = urlencode(query)
+            redirect_url = urlunparse(url_parts)
+
+            return RedirectResponse(url = redirect_url, status_code = 307)
         if await is_service_ready(namespace = autoscaler_app_namespace, name = autoscaler_app_service):
             logger.info(f"Service {autoscaler_app_service}  is ready")
             await wakeup_ingress(namespace = autoscaler_app_namespace,
@@ -100,10 +107,4 @@ async def wakeup(path: str,  request: Request,
             logger.info(f"Service {autoscaler_app_service} is not ready {i}")
             await asyncio.sleep(AUTOSCALER_READINESS_TIMEOUT)
 
-    url_parts = list(urlparse(request.url))
-    query = dict(parse_qsl(url_parts[4]))
-    query.update({"retries": current_retries})
-    url_parts[4] = urlencode(query)
-    redirect_url = urlunparse(url_parts)
-
-    return RedirectResponse(url = redirect_url, status_code = 307)
+    return RedirectResponse(url = request.url, status_code = 307)
