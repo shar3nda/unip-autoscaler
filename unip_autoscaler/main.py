@@ -59,7 +59,7 @@ async def hibernate(deployment:Deployment):
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def wakeup(path: str,  request: Request,
-                 current_retries: Annotated[Union[int, None], Query(default=0)] = 0,
+                 current_retries: Annotated[Union[int, None], Query()] = 0,
                  autoscaler_app_namespace: Annotated[Union[str, None], Header(convert_underscores=False)] = None,
                  autoscaler_app_deployment: Annotated[Union[str, None], Header(convert_underscores=False)] = None,
                  autoscaler_app_service: Annotated[Union[str, None], Header(convert_underscores=False)] = None,
