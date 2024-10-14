@@ -40,7 +40,7 @@ async def check_readiness_probe(dep: V1Deployment, srvc: V1Service):
                         period_seconds=AUTOSCALER_READINESS_PROBE_PERIOD,
                         failure_threshold=AUTOSCALER_READINESS_PROBE_FAILURE_THRESHOLD
                     )
-                    logger.info("CONTAINER_NAME: ", container.name)
+                    logger.info(f"CONTAINER_NAME: {container.name}")
                     patch_body = {
                         "spec": {
                             "template": {
@@ -180,7 +180,7 @@ async def scale_deployment(dep: V1Deployment, replicas: int):
 
 async def hibernate_by_service(namespace: str, service: str):
     service = await get_service(service, namespace)
-    logger.info("SERVICE TYPE: ", service.spec.type)
+    logger.info(f"SERVICE TYPE: {service.spec.type}")
     if service.spec.type == "ExternalName":
         logger.info("ExternalName service encountered")
         return ""
@@ -199,7 +199,7 @@ async def hibernate_by_deployment(name: str, namespace: str):
 async def hibernate(deployment: V1Deployment, service: V1Service, namespace: str):
     ingress = await get_ingress_by_service(service)
     if ingress is None and deployment is not None and service is not None:
-        logger.info("Ingress not found, ", namespace, " is probably already hibernated")
+        logger.info(f"Ingress not found, {namespace} is probably already hibernated")
         return ""
     hibernatedService = await get_hibernated_service(service)
     updated_rules = ingress.spec.rules

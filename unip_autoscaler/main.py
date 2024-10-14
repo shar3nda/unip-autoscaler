@@ -40,7 +40,7 @@ class AlertRequestModel(BaseModel):
 async def alert(alert: AlertRequestModel):
     namespace = alert.commonAnnotations.namespace
     service = alert.commonAnnotations.service
-    logger.info("ALERT: ", namespace, service)
+    logger.info(f"ALERT: {namespace}, {service}")
     if service == "kogan-cl-mlcmp-svc":
         return await hibernate_by_service(namespace, service)
     logger.info("Skip service hibernation")
