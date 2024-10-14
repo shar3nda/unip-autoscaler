@@ -1,12 +1,16 @@
 import asyncio
 import base64
-from fastapi import FastAPI, Header
+from fastapi import FastAPI, Header, Query
 from typing_extensions import Annotated
 from typing import Union
 from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
+from ua_parser import user_agent_parser
+from urllib.parse import urlparse, parse_qsl, urlunparse, urlencode
 
+
+from .user_agents import USER_AGENTS_CONFIG
 from .logger import logger
 from .functions import (
     get_deployment,
@@ -55,18 +59,35 @@ async def hibernate(deployment:Deployment):
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def wakeup(path: str,  request: Request,
+                 current_retries: Annotated[Union[int, None], Query(default=0)] = 0,
                  autoscaler_app_namespace: Annotated[Union[str, None], Header(convert_underscores=False)] = None,
                  autoscaler_app_deployment: Annotated[Union[str, None], Header(convert_underscores=False)] = None,
                  autoscaler_app_service: Annotated[Union[str, None], Header(convert_underscores=False)] = None,
                  autoscaler_app_ingress: Annotated[Union[str, None], Header(convert_underscores=False)] = None,
                  autoscaler_app_ingress_rewrite: Annotated[Union[str, None], Header(convert_underscores=False)] = None
                  ):
+
+    user_agent = user_agent_parser.Parse(request.headers['user-agent']).get('user_agent', {}).get('family', 'default')
+    if user_agent not in USER_AGENTS_CONFIG:
+        user_agent = 'default'
+    logger.info(f"User-Agent: {user_agent}")
+    max_retries = USER_AGENTS_CONFIG[user_agent]['redirects']
+    max_timeout = USER_AGENTS_CONFIG[user_agent]['timeout']
+
+    if current_retries >= max_retries:
+        logger.info(f"Max retries reached {current_retries}")
+        raise Exception("Max retries reached")
+
+    current_retries += 1
     deployment = await get_deployment(name = autoscaler_app_deployment, namespace = autoscaler_app_namespace)
     service = await get_service(name = autoscaler_app_service, namespace = autoscaler_app_namespace)
     await check_readiness_probe(deployment, service)
 
     await scale_deployment(dep = deployment, replicas = 1)
     for i in range(AUTOSCALER_READINESS_LIMIT):
+        if AUTOSCALER_READINESS_TIMEOUT * i * 1.2 >= max_timeout:
+            logger.info(f"Timeout reached {max_timeout}")
+            break
         if await is_service_ready(namespace = autoscaler_app_namespace, name = autoscaler_app_service):
             logger.info(f"Service {autoscaler_app_service}  is ready")
             await wakeup_ingress(namespace = autoscaler_app_namespace,
@@ -79,4 +100,10 @@ async def wakeup(path: str,  request: Request,
             logger.info(f"Service {autoscaler_app_service} is not ready {i}")
             await asyncio.sleep(AUTOSCALER_READINESS_TIMEOUT)
 
-    return RedirectResponse(url = request.url, status_code = 307)
+    url_parts = list(urlparse(request.url))
+    query = dict(parse_qsl(url_parts[4]))
+    query.update({"retries": current_retries})
+    url_parts[4] = urlencode(query)
+    redirect_url = urlunparse(url_parts)
+
+    return RedirectResponse(url = redirect_url, status_code = 307)
