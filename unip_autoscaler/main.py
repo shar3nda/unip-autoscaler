@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
+from .logger import logger
 from .functions import (
     get_deployment,
     check_readiness_probe,
@@ -39,15 +40,16 @@ class AlertRequestModel(BaseModel):
 async def alert(alert: AlertRequestModel):
     namespace = alert.commonAnnotations.namespace
     service = alert.commonAnnotations.service
-    print("ALERT: ", namespace, service)
-    # if service == "module-example-mlcmp-svc":
-    return await hibernate_by_service(namespace, service)
+    logger.info("ALERT: ", namespace, service)
+    if service == "kogan-cl-mlcmp-svc":
+        return await hibernate_by_service(namespace, service)
+    logger.info("Skip service hibernation")
 
 
 
 @app.post("/hibernate")
 async def hibernate(deployment:Deployment):
-    print(f"Hibernating deployment {deployment.name}")
+    logger.info(f"Hibernating deployment {deployment.name}")
     return await hibernate_by_deployment(deployment.name, deployment.namespace)
 
 
@@ -66,7 +68,7 @@ async def wakeup(path: str,  request: Request,
     await scale_deployment(dep = deployment, replicas = 1)
     for i in range(AUTOSCALER_READINESS_LIMIT):
         if await is_service_ready(namespace = autoscaler_app_namespace, name = autoscaler_app_service):
-            print(f"Service {autoscaler_app_service}  is ready")
+            logger.info(f"Service {autoscaler_app_service}  is ready")
             await wakeup_ingress(namespace = autoscaler_app_namespace,
                        serviceName = autoscaler_app_service,
                        ingName = autoscaler_app_ingress,
@@ -74,7 +76,7 @@ async def wakeup(path: str,  request: Request,
             await asyncio.sleep(3)
             break
         else:
-            print(f"Service {autoscaler_app_service} is not ready {i}")
+            logger.info(f"Service {autoscaler_app_service} is not ready {i}")
             await asyncio.sleep(AUTOSCALER_READINESS_TIMEOUT)
 
     return RedirectResponse(url = request.url, status_code = 307)
