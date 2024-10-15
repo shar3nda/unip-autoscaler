@@ -18,7 +18,7 @@ spec:
       serviceAccountName: unip-autoscaler
       containers:
         - name: unip-autoscaler
-          image: platform-reg.stratpro.hse.ru/registry-user/unip-autoscaler:0.0.1
+          image: platform-reg.stratpro.hse.ru/registry-user/unip-autoscaler:v1
           imagePullPolicy: Always
           env:
             - name: AUTOSCALER_READINESS_PROBE_TIMEOUT
@@ -54,9 +54,9 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - mlops.event33.ru
+        - platform.stratpro.hse.ru
   rules:
-    - host: mlops.event33.ru
+    - host: platform.stratpro.hse.ru
       http:
         paths:
           - path: /autoscaler(/|$)(.*)

@@ -3,6 +3,7 @@ from kubernetes.client import V1Deployment, ApiException, V1Service, V1Ingress
 import re
 import base64
 
+from .logger import logger
 from .lock import get_resource_lock
 from .settings import (
     AUTOSCALER_APP_SELECTOR_NAME,
@@ -39,7 +40,7 @@ async def check_readiness_probe(dep: V1Deployment, srvc: V1Service):
                         period_seconds=AUTOSCALER_READINESS_PROBE_PERIOD,
                         failure_threshold=AUTOSCALER_READINESS_PROBE_FAILURE_THRESHOLD
                     )
-                    print("CONTAINER_NAME: ", container.name)
+                    logger.info(f"CONTAINER_NAME: {container.name}")
                     patch_body = {
                         "spec": {
                             "template": {
@@ -126,15 +127,15 @@ async def get_hibernated_service(srvc: V1Service):
                 )
             # except ApiException as e:
             #     if e.status == 404:
-            #         print("EXCEPTION TYPE: APIEXCEPTION")
+            #         logger.info("EXCEPTION TYPE: APIEXCEPTION")
             #         hibernatedService = await create_hibernated_service(srvc)
             except Exception as e:
                 if type(e).__name__ == "ApiException" and e.status == 404:
-                    print("CREATING HIBERNATED SERVICE")
+                    logger.info("CREATING HIBERNATED SERVICE")
                     hibernatedService = await create_hibernated_service(srvc)
-                #print("get_hibernated_service EXCEPTION TYPE: ",type(e).__name__)
+                #logger.info("get_hibernated_service EXCEPTION TYPE: ",type(e).__name__)
                 else:
-                    print(f"Error: {e}")
+                    logger.info(f"Error: {e}")
         return hibernatedService
 
 
@@ -171,17 +172,17 @@ async def scale_deployment(dep: V1Deployment, replicas: int):
                 body=patch_body
             )
         except ApiException as e:
-            print(f"Scaling Deployment error: {e}")
+            logger.info(f"Scaling Deployment error: {e}")
         except Exception as e:
-            print(f"Error: {e}")
-        print("Deployment Scaled Successfully")
+            logger.info(f"Error: {e}")
+        logger.info("Deployment Scaled Successfully")
         return ""
 
 async def hibernate_by_service(namespace: str, service: str):
     service = await get_service(service, namespace)
-    print("SERVICE TYPE: ", service.spec.type)
+    logger.info(f"SERVICE TYPE: {service.spec.type}")
     if service.spec.type == "ExternalName":
-        print("ExternalName service encountered")
+        logger.info("ExternalName service encountered")
         return ""
     deployment = await get_deployment_by_service(service)
     return await hibernate(deployment, service, namespace)
@@ -198,7 +199,7 @@ async def hibernate_by_deployment(name: str, namespace: str):
 async def hibernate(deployment: V1Deployment, service: V1Service, namespace: str):
     ingress = await get_ingress_by_service(service)
     if ingress is None and deployment is not None and service is not None:
-        print("Ingress not found, ", namespace, " is probably already hibernated")
+        logger.info(f"Ingress not found, {namespace} is probably already hibernated")
         return ""
     hibernatedService = await get_hibernated_service(service)
     updated_rules = ingress.spec.rules
@@ -242,7 +243,7 @@ proxy_set_header AUTOSCALER_APP_INGRESS_REWRITE %s;
 
 
 async def patch_ingress(namespace: str, ingName: str, new_annotations: dict, updated_rules):
-    print("PATCHING INGRESS")
+    logger.info("PATCHING INGRESS")
     ingress_patch = {
         "metadata": {
             "annotations": new_annotations
@@ -261,7 +262,7 @@ async def patch_ingress(namespace: str, ingName: str, new_annotations: dict, upd
 async def wakeup_ingress(namespace: str, serviceName: str, ingName: str, rewriteRule: str):
     lock = await get_resource_lock(namespace, ingName, "ingress")
     async with lock:
-        print("wakeup_ingress")
+        logger.info("wakeup_ingress")
         ingress = await networkingV1Api.read_namespaced_ingress(namespace=namespace, name=ingName)
 
         updated_rules = ingress.spec.rules
@@ -280,7 +281,7 @@ async def wakeup_ingress(namespace: str, serviceName: str, ingName: str, rewrite
 
         await patch_ingress(namespace=namespace, ingName=ingName, new_annotations=new_annotations,
                             updated_rules=updated_rules)
-        print("INGRESS PATCHED")
+        logger.info("INGRESS PATCHED")
 
 
 async def is_service_ready(namespace: str, name: str):
@@ -288,7 +289,7 @@ async def is_service_ready(namespace: str, name: str):
         service = await coreV1API.read_namespaced_service(namespace=namespace, name=name)
         return await is_any_pod_ready(service)
     except ApiException as e:
-        print(f"ApiException: {e}")
+        logger.info(f"ApiException: {e}")
         return False
 
 
