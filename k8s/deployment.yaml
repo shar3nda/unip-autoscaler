@@ -20,13 +20,9 @@ spec:
         - name: unip-autoscaler
           image: platform-reg.stratpro.hse.ru/registry-user/unip-autoscaler:v1
           imagePullPolicy: Always
-          env:
-            - name: AUTOSCALER_READINESS_PROBE_TIMEOUT
-              value: "15"
-            - name: AUTOSCALER_READINESS_LIMIT
-              value: "30"
-            - name: AUTOSCALER_READINESS_TIMEOUT
-              value: "1"
+          envFrom:
+            - configMapRef:
+                name: autoscaler-config
       imagePullSecrets:
         - name: registry-credentials
 ---

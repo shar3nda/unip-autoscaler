@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: autoscaler-config
+  namespace: unip-system-autoscaler
+data:
+  AUTOSCALER_READINESS_PROBE_TIMEOUT: "15"
+  AUTOSCALER_READINESS_LIMIT: "30"
+  AUTOSCALER_READINESS_TIMEOUT: "1"
