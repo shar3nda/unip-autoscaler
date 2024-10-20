@@ -59,7 +59,7 @@ async def hibernate(deployment:Deployment):
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def wakeup(path: str,  request: Request,
-                 current_retries: Annotated[Union[int, None], Query()] = 0,
+                 retries: Annotated[Union[int, None], Query()] = 0,
                  autoscaler_app_namespace: Annotated[Union[str, None], Header(convert_underscores=False)] = None,
                  autoscaler_app_deployment: Annotated[Union[str, None], Header(convert_underscores=False)] = None,
                  autoscaler_app_service: Annotated[Union[str, None], Header(convert_underscores=False)] = None,
@@ -74,11 +74,11 @@ async def wakeup(path: str,  request: Request,
     max_retries = USER_AGENTS_CONFIG[user_agent]['redirects']
     max_timeout = USER_AGENTS_CONFIG[user_agent]['timeout']
 
-    if current_retries >= max_retries:
-        logger.info(f"Max retries reached {current_retries}")
+    if retries >= max_retries:
+        logger.info(f"Max retries reached {retries}")
         raise Exception("Max retries reached")
 
-    current_retries += 1
+    retries += 1
     deployment = await get_deployment(name = autoscaler_app_deployment, namespace = autoscaler_app_namespace)
     service = await get_service(name = autoscaler_app_service, namespace = autoscaler_app_namespace)
     await check_readiness_probe(deployment, service)
@@ -90,7 +90,7 @@ async def wakeup(path: str,  request: Request,
 
             url_parts = list(urlparse(str(request.url)))
             query = dict(parse_qsl(url_parts[4]))
-            query.update({"retries": current_retries})
+            query.update({"retries": retries})
             url_parts[4] = urlencode(query)
             redirect_url = urlunparse(url_parts)
 
