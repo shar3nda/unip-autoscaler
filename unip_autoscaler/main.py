@@ -38,7 +38,7 @@ def run_task(task, *args, **kwargs):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # TODO: обновлять конфиги через watch
-    configs = load_autoscaler_configs()
+    configs = await load_autoscaler_configs()
 
     for config in configs:
         scheduler.add_job(
