@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import re
+from datetime import datetime
 
 import aiohttp
 import jsonschema
@@ -9,6 +10,7 @@ from kubernetes import client
 from kubernetes.client import ApiException, V1Deployment, V1Service
 
 from .autoscaling_config import SCALING_CONFIG_SCHEMA, ScalingConfig
+from .cooldown import has_cooldown, set_scaling_timestamp
 from .k8s_client import k8s
 from .lock import get_resource_lock
 from .logger import logger
@@ -495,6 +497,10 @@ async def get_replicas_delta(config: ScalingConfig) -> int:
 async def autoscale_target(config: ScalingConfig) -> None:
     """Масштабирует объект в соответствии с конфигурацией."""
 
+    if await has_cooldown(config["target"], config["cooldown"]):
+        logger.info("cooldown is active, skip scaling")
+        return
+
     target = config["target"]
 
     replicas_delta = await get_replicas_delta(config)
@@ -525,7 +531,9 @@ async def autoscale_target(config: ScalingConfig) -> None:
 
     if new_replicas != 0:
         logger.info(f"scaling {target} from {current_replicas} to {new_replicas}")
-        return await scale_deployment(deployment, new_replicas)
+        await scale_deployment(deployment, new_replicas)
+        await set_scaling_timestamp(target, datetime.now())
+        return
 
     service = await get_service_from_config(config)
     if service is None:
@@ -533,4 +541,6 @@ async def autoscale_target(config: ScalingConfig) -> None:
         return
 
     logger.info(f"hibernating {target} from {current_replicas}")
-    return await hibernate(deployment, service, deployment.metadata.namespace)
+    await hibernate(deployment, service, deployment.metadata.namespace)
+    await set_scaling_timestamp(target, datetime.now())
+    return

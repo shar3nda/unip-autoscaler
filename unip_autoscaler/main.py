@@ -25,7 +25,11 @@ from .functions import (
 )
 from .k8s_client import k8s
 from .logger import logger
-from .settings import AUTOSCALER_READINESS_LIMIT, AUTOSCALER_READINESS_TIMEOUT
+from .settings import (
+    AUTOSCALER_CHECK_INTERVAL,
+    AUTOSCALER_READINESS_LIMIT,
+    AUTOSCALER_READINESS_TIMEOUT,
+)
 from .user_agents import USER_AGENTS_CONFIG
 
 scheduler = AsyncIOScheduler()
@@ -42,7 +46,7 @@ async def lifespan(app: FastAPI):
         scheduler.add_job(
             autoscale_target,
             trigger="interval",
-            seconds=10,
+            seconds=AUTOSCALER_CHECK_INTERVAL,
             kwargs={"config": cfg},
         )
 

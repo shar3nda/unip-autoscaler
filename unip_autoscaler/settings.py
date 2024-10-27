@@ -54,6 +54,12 @@ AUTOSCALER_SPEC_FILE = os.environ.get(
     "AUTOSCALER_SPEC_FILE",
     "/etc/unip-autoscaler/spec.yaml",
 )
+AUTOSCALER_CHECK_INTERVAL = int(
+    os.environ.get(
+        "AUTOSCALER_CHECK_INTERVAL",
+        "300",
+    )
+)
 PROMETHEUS_URL = os.environ.get(
     "PROMETHEUS_URL",
     "http://prometheus.unip-system-prometheus.svc.cluster.local:9090/prometheus/api/v1/query",
