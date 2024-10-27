@@ -448,7 +448,7 @@ async def get_replicas_delta(config: ScalingConfig) -> int:
     if config["scalingRules"].get("prometheusMetric"):
         rule = config["scalingRules"]["prometheusMetric"]
         prometheus_query = rule["query"]
-        value = fetch_prometheus_metric(prometheus_query)
+        value = await fetch_prometheus_metric(prometheus_query)
         logger.debug(f"Prometheus metric: {value}")
         if value is None:
             return 0
