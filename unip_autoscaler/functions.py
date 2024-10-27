@@ -378,11 +378,8 @@ async def fetch_prometheus_metric(query) -> float | None:
 async def load_autoscaler_configs() -> list[ScalingConfig]:
     result = []
 
-    configs = yaml.safe_load_all(
-        coreV1API.read_namespaced_config_map(
-            name="autoscaler-props", namespace="unip-system-autoscaler"
-        ).data["spec.yaml"]
-    )
+    with open('/etc/unip-autoscaler/spec.yaml') as f:
+        configs = yaml.safe_load_all(f)
 
     validator = jsonschema.Draft202012Validator(SCALING_CONFIG_SCHEMA)
 
