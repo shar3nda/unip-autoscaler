@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
     logger.info("Scheduler stopped")
 
 
-app = FastAPI(docs_url=None, redoc_url=None)
+app = FastAPI(docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 class Deployment(BaseModel):
