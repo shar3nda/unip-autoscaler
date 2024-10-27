@@ -1,13 +1,15 @@
-from typing import TypedDict, Dict
+from typing import TypedDict
+
 
 class UserAgentSettings(TypedDict):
     redirects: int
     timeout: int
 
+
 MAX_REDIRECTS = 50
 MAX_TIMEOUT = 900
 
-USER_AGENTS_CONFIG: Dict[str, UserAgentSettings] = {
+USER_AGENTS_CONFIG: dict[str, UserAgentSettings] = {
     "default": {
         "redirects": 20,
         "timeout": 300,

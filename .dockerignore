@@ -3,3 +3,4 @@ k8s
 .idea
 .git
 .vscode
+.ruff_cache
