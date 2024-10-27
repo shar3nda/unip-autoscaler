@@ -1,5 +1,7 @@
+from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
 import base64
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, Query
 from typing_extensions import Annotated
 from pydantic import BaseModel
@@ -12,6 +14,7 @@ from urllib.parse import urlparse, parse_qsl, urlunparse, urlencode
 from .user_agents import USER_AGENTS_CONFIG
 from .logger import logger
 from .functions import (
+    autoscale_target,
     get_deployment,
     check_readiness_probe,
     get_service,
@@ -20,8 +23,37 @@ from .functions import (
     hibernate_by_deployment,
     scale_deployment,
     hibernate_by_service,
+    load_autoscaler_configs,
 )
 from .settings import AUTOSCALER_READINESS_LIMIT, AUTOSCALER_READINESS_TIMEOUT
+
+
+scheduler = BackgroundScheduler()
+
+
+def run_task(task, *args, **kwargs):
+    asyncio.run(task(*args, **kwargs))
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # TODO: обновлять конфиги через watch
+    configs = load_autoscaler_configs()
+
+    for config in configs:
+        scheduler.add_job(
+            run_task,
+            trigger="interval",
+            seconds=config["cooldown"],
+            args=[autoscale_target],
+            kwargs={"config": config},
+        )
+
+    scheduler.start()
+    logger.info("Scheduler started")
+    yield
+    scheduler.shutdown()
+    logger.info("Scheduler stopped")
 
 
 app = FastAPI(docs_url=None, redoc_url=None)
@@ -77,7 +109,7 @@ async def wakeup(
     autoscaler_app_ingress_rewrite: Annotated[
         str | None, Header(convert_underscores=False)
     ] = None,
-                 ):
+):
     user_agent = (
         user_agent_parser.Parse(request.headers["user-agent"])
         .get("user_agent", {})

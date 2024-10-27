@@ -35,42 +35,42 @@ async def check_readiness_probe(dep: V1Deployment, srvc: V1Service):
         dep.metadata.name,
         "deployment",
     )
-        async with lock:
+    async with lock:
         if (
             dep
             and dep.spec.template.metadata.labels[AUTOSCALER_APP_SELECTOR_NAME]
             == srvc.spec.selector[AUTOSCALER_APP_SELECTOR_NAME]
         ):
-                container = dep.spec.template.spec.containers[0]
-                if not container.readiness_probe:
-                    readiness_probe = client.V1Probe(
-                        tcp_socket=client.V1TCPSocketAction(
-                            port=srvc.spec.ports[0].target_port
-                        ),
-                        initial_delay_seconds=AUTOSCALER_READINESS_PROBE_INITIAL_DELAY,
-                        period_seconds=AUTOSCALER_READINESS_PROBE_PERIOD,
+            container = dep.spec.template.spec.containers[0]
+            if not container.readiness_probe:
+                readiness_probe = client.V1Probe(
+                    tcp_socket=client.V1TCPSocketAction(
+                        port=srvc.spec.ports[0].target_port
+                    ),
+                    initial_delay_seconds=AUTOSCALER_READINESS_PROBE_INITIAL_DELAY,
+                    period_seconds=AUTOSCALER_READINESS_PROBE_PERIOD,
                     failure_threshold=AUTOSCALER_READINESS_PROBE_FAILURE_THRESHOLD,
-                    )
-                    logger.info(f"CONTAINER_NAME: {container.name}")
-                    patch_body = {
-                        "spec": {
-                            "template": {
-                                "spec": {
+                )
+                logger.info(f"CONTAINER_NAME: {container.name}")
+                patch_body = {
+                    "spec": {
+                        "template": {
+                            "spec": {
                                 "containers": [
                                     {
                                         "name": container.name,  # Это используется как идентификатор, а не меняет имя контейнера
                                         "readinessProbe": readiness_probe,
                                     }
                                 ]
-                                }
                             }
                         }
                     }
-                    await appsV1Api.patch_namespaced_deployment(
-                        name=dep.metadata.name,
-                        namespace=dep.metadata.namespace,
+                }
+                await appsV1Api.patch_namespaced_deployment(
+                    name=dep.metadata.name,
+                    namespace=dep.metadata.namespace,
                     body=patch_body,
-                    )
+                )
 
 
 async def get_service(name: str, namespace: str):
@@ -83,7 +83,7 @@ async def get_service_by_deployment(dep: V1Deployment):
     srvcs = list(
         filter(
             lambda srvc: srvc.spec.type == "ClusterIP"
-                     and srvc.spec.selector is not None
+            and srvc.spec.selector is not None
             and srvc.spec.selector[AUTOSCALER_APP_SELECTOR_NAME]
             == dep_labels[AUTOSCALER_APP_SELECTOR_NAME],
             srvcs.items,
@@ -349,3 +349,176 @@ async def is_any_pod_ready(srvc: V1Service):
         logger.info(f"ApiException: {e}")
         return False
 
+
+async def fetch_prometheus_metric(query) -> float | None:
+    """
+    Функция для запроса метрики из Prometheus.
+    Ожидается, что метрика возвращает одно вещественное число.
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.get(PROMETHEUS_URL, params={"query": query}) as response:
+            if response.status == 200:
+                logger.error(f"prometheus error: {response.text()}")
+                return None
+
+            data = await response.json()
+            if data["status"] == "success":
+                result = data["data"]["result"]
+                if result:
+                    value = float(result[0]["value"][1])
+                    return value
+                else:
+                    logger.warning("no data received in metric")
+                    return None
+            else:
+                logger.error(f"prometheus error: {data['error']}")
+                return None
+
+
+async def load_autoscaler_configs() -> list[ScalingConfig]:
+    result = []
+
+    configs = yaml.safe_load_all(
+        coreV1API.read_namespaced_config_map(
+            name="autoscaler-props", namespace="unip-system-autoscaler"
+        ).data["spec.yaml"]
+    )
+
+    validator = jsonschema.Draft202012Validator(SCALING_CONFIG_SCHEMA)
+
+    for config in configs:
+        try:
+            validator.validate(config)
+            result.append(config)
+        except jsonschema.ValidationError as e:
+            logger.error(f"Invalid config: {e}")
+
+    return result
+
+
+def get_cpu_ram_query(deployment_name: str, time_window=300):
+    queries = {
+        "cpu": "sum(rate(container_cpu_usage_seconds_total{"
+        f'pod=~"{deployment_name}-.*"'
+        "}"
+        f"[{time_window}s])) by (pod) * 100",
+        "memory": "avg by (pod) (avg_over_time(container_memory_working_set_bytes{"
+        f'pod=~"{deployment_name}-.*"'
+        "}"
+        f"[{time_window}s:])) / 1024 / 1024",
+    }
+    return queries
+
+
+async def get_deployment_from_config(config: ScalingConfig) -> V1Deployment:
+    target = config["target"]
+
+    if target["kind"] == "deployment":
+        return target["name"]
+
+    if target["kind"] == "service":
+        service = await get_service(target["name"], target["namespace"])
+        deployment = await get_deployment_by_service(service)
+        return deployment
+
+
+async def get_service_from_config(config: ScalingConfig) -> V1Service:
+    target = config["target"]
+
+    if target["kind"] == "service":
+        return target["name"]
+
+    if target["kind"] == "deployment":
+        deployment = await get_deployment_from_config(config)
+        return await get_service_by_deployment(deployment)
+
+
+async def get_replicas_delta(config: ScalingConfig) -> int:
+    """
+    Возвращает изменение количества реплик в соответствии с правилами масштабирования.
+    Не учитывает параметры minReplicas и maxReplicas.
+    """
+    if config["scalingRules"].get("prometheusMetric"):
+        rule = config["scalingRules"]["prometheusMetric"]
+        prometheus_query = rule["query"]
+        value = fetch_prometheus_metric(prometheus_query)
+        logger.debug(f"Prometheus metric: {value}")
+        if value is None:
+            return 0
+
+        if value > rule["thresholdUp"]:
+            return rule["stepUp"]
+        elif value < rule["thresholdDown"]:
+            return rule["stepDown"]
+        else:
+            return 0
+    else:
+        deployment = await get_deployment_from_config(config)
+        deployment_name = deployment.metadata.name
+        queries = get_cpu_ram_query(deployment_name, config["timeWindow"])
+        cpu_value = await fetch_prometheus_metric(queries["cpu"])
+        memory_value = await fetch_prometheus_metric(queries["memory"])
+        logger.debug(f"CPU: {cpu_value}%, RAM: {memory_value}M")
+
+        rule_up = config["scalingRules"]["scaleUp"]
+        rule_down = config["scalingRules"]["scaleDown"]
+
+        if (
+            cpu_value > rule_up["cpuThreshold"]
+            and memory_value > rule_up["memoryThreshold"]
+        ):
+            return rule_up["step"]
+        elif (
+            cpu_value < rule_down["cpuThreshold"]
+            and memory_value < rule_down["memoryThreshold"]
+        ):
+            return rule_down["step"]
+        else:
+            return 0
+
+
+async def autoscale_target(config: ScalingConfig) -> None:
+    """Масштабирует объект в соответствии с конфигурацией."""
+
+    target = config["target"]
+
+    replicas_delta = await get_replicas_delta(config)
+    if replicas_delta == 0:
+        logger.info(f"replicas_delta is 0, skip scaling {target}")
+        return
+
+    # TODO: maybe cache deployment and service objects
+    deployment = await get_deployment_from_config(config)
+
+    if deployment is None:
+        logger.error(f"deployment to autoscale not found for {target}")
+        return
+
+    current_replicas = deployment.spec.replicas
+
+    new_replicas = current_replicas + replicas_delta
+    new_replicas = min(
+        config["maxReplicas"],
+        max(
+            config["minReplicas"],
+            new_replicas,
+        ),
+    )
+
+    if new_replicas == current_replicas:
+        logger.info(f"replica count is already desired for {target}")
+        return
+
+    if new_replicas != 0:
+        logger.info(f"scaling {target} from {current_replicas} to {new_replicas}")
+        # await scale_deployment(deployment, new_replicas)
+        await asyncio.sleep(10)
+
+    service = await get_service_from_config(config)
+    if service is None:
+        logger.error(f"service to autoscale not found for {target}")
+        return
+
+    logger.info(f"hibernating {target} from {current_replicas}")
+    # await hibernate(deployment, service, deployment.metadata.namespace)
+    await asyncio.sleep(10)
