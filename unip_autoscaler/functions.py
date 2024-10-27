@@ -357,8 +357,9 @@ async def fetch_prometheus_metric(query) -> float | None:
     """
     async with aiohttp.ClientSession() as session:
         async with session.get(PROMETHEUS_URL, params={"query": query}) as response:
-            if response.status == 200:
-                logger.error(f"prometheus error: {response.text()}")
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(f"prometheus error: {response_text}")
                 return None
 
             data = await response.json()
@@ -421,7 +422,7 @@ async def get_deployment_from_config(config: ScalingConfig) -> V1Deployment:
     target = config["target"]
 
     if target["kind"] == "deployment":
-        return target["name"]
+        return await get_deployment(target["name"], target["namespace"])
 
     if target["kind"] == "service":
         service = await get_service(target["name"], target["namespace"])
@@ -433,7 +434,7 @@ async def get_service_from_config(config: ScalingConfig) -> V1Service:
     target = config["target"]
 
     if target["kind"] == "service":
-        return target["name"]
+        return await get_service(target["name"], target["namespace"])
 
     if target["kind"] == "deployment":
         deployment = await get_deployment_from_config(config)
