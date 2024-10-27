@@ -1,5 +1,7 @@
 from typing import TypedDict
 
+# TODO: мб использовать pydantic
+
 
 class PrometheusRule(TypedDict):
     query: str

@@ -3,13 +3,13 @@ import base64
 import re
 
 import aiohttp
+import jsonschema
 import yaml
 from kubernetes import client
 from kubernetes.client import ApiException, V1Deployment, V1Service
-import jsonschema
 
-from .__init__ import appsV1Api, coreV1API, networkingV1Api
 from .autoscaling_config import SCALING_CONFIG_SCHEMA, ScalingConfig
+from .k8s_client import k8s
 from .lock import get_resource_lock
 from .logger import logger
 from .settings import (
@@ -21,12 +21,15 @@ from .settings import (
     AUTOSCALER_READINESS_PROBE_INITIAL_DELAY,
     AUTOSCALER_READINESS_PROBE_PERIOD,
     AUTOSCALER_SERVICE_EXTERNAL_NAME,
+    AUTOSCALER_SPEC_FILE,
     PROMETHEUS_URL,
 )
 
 
 async def get_deployment(name: str, namespace: str):
-    return await appsV1Api.read_namespaced_deployment(name=name, namespace=namespace)
+    return await k8s.appsV1Api.read_namespaced_deployment(
+        name=name, namespace=namespace
+    )
 
 
 async def check_readiness_probe(dep: V1Deployment, srvc: V1Service):
@@ -66,7 +69,7 @@ async def check_readiness_probe(dep: V1Deployment, srvc: V1Service):
                         }
                     }
                 }
-                await appsV1Api.patch_namespaced_deployment(
+                await k8s.appsV1Api.patch_namespaced_deployment(
                     name=dep.metadata.name,
                     namespace=dep.metadata.namespace,
                     body=patch_body,
@@ -74,12 +77,12 @@ async def check_readiness_probe(dep: V1Deployment, srvc: V1Service):
 
 
 async def get_service(name: str, namespace: str):
-    return await coreV1API.read_namespaced_service(name=name, namespace=namespace)
+    return await k8s.coreV1API.read_namespaced_service(name=name, namespace=namespace)
 
 
 async def get_service_by_deployment(dep: V1Deployment):
     dep_labels = dep.spec.selector.match_labels
-    srvcs = await coreV1API.list_namespaced_service(dep.metadata.namespace)
+    srvcs = await k8s.coreV1API.list_namespaced_service(dep.metadata.namespace)
     srvcs = list(
         filter(
             lambda srvc: srvc.spec.type == "ClusterIP"
@@ -100,7 +103,9 @@ async def get_deployment_by_service(service: V1Service):
         raise ValueError("Service is missing labels")
 
     # Ищем деплойменты в том же namespace
-    deployments = await appsV1Api.list_namespaced_deployment(service.metadata.namespace)
+    deployments = await k8s.appsV1Api.list_namespaced_deployment(
+        service.metadata.namespace
+    )
 
     matching_deployments = list(
         filter(
@@ -117,7 +122,9 @@ async def get_deployment_by_service(service: V1Service):
 
 
 async def get_ingress_by_service(srvc: V1Service):
-    ingresses = await networkingV1Api.list_namespaced_ingress(srvc.metadata.namespace)
+    ingresses = await k8s.networkingV1Api.list_namespaced_ingress(
+        srvc.metadata.namespace
+    )
     service_name = srvc.metadata.name
 
     for ingress in ingresses.items:
@@ -141,7 +148,7 @@ async def get_hibernated_service(srvc: V1Service):
         )
         async with lock:
             try:
-                hibernatedService = await coreV1API.read_namespaced_service(
+                hibernatedService = await k8s.coreV1API.read_namespaced_service(
                     name=srvc.metadata.name + AUTOSCALER_HIBERNATED_SERVICE_SUFFIX,
                     namespace=srvc.metadata.namespace,
                 )
@@ -169,7 +176,7 @@ async def create_hibernated_service(srvc: V1Service):
             type="ExternalName", external_name=AUTOSCALER_SERVICE_EXTERNAL_NAME
         )
         hibernatedService = client.V1Service(metadata=metadata, spec=spec)
-        hibernatedService = await coreV1API.create_namespaced_service(
+        hibernatedService = await k8s.coreV1API.create_namespaced_service(
             namespace=srvc.metadata.namespace, body=hibernatedService
         )
     return hibernatedService
@@ -183,7 +190,7 @@ async def scale_deployment(dep: V1Deployment, replicas: int):
     async with lock:
         try:
             patch_body = {"spec": {"replicas": replicas}}
-            await appsV1Api.patch_namespaced_deployment(
+            await k8s.appsV1Api.patch_namespaced_deployment(
                 name=dep.metadata.name,
                 namespace=dep.metadata.namespace,
                 body=patch_body,
@@ -273,7 +280,7 @@ async def patch_ingress(
         "metadata": {"annotations": new_annotations},
         "spec": {"rules": updated_rules},
     }
-    return await networkingV1Api.patch_namespaced_ingress(
+    return await k8s.networkingV1Api.patch_namespaced_ingress(
         name=ingName, namespace=namespace, body=ingress_patch
     )
 
@@ -284,7 +291,7 @@ async def wakeup_ingress(
     lock = await get_resource_lock(namespace, ingName, "ingress")
     async with lock:
         logger.info("wakeup_ingress")
-        ingress = await networkingV1Api.read_namespaced_ingress(
+        ingress = await k8s.networkingV1Api.read_namespaced_ingress(
             namespace=namespace, name=ingName
         )
 
@@ -320,7 +327,7 @@ async def wakeup_ingress(
 
 async def is_service_ready(namespace: str, name: str):
     try:
-        service = await coreV1API.read_namespaced_service(
+        service = await k8s.coreV1API.read_namespaced_service(
             namespace=namespace, name=name
         )
         return await is_any_pod_ready(service)
@@ -335,7 +342,7 @@ async def is_any_pod_ready(srvc: V1Service):
         label_selector = ",".join(
             [f"{key}={value}" for key, value in selectors.items()]
         )
-        pods = await coreV1API.list_namespaced_pod(
+        pods = await k8s.coreV1API.list_namespaced_pod(
             namespace=srvc.metadata.namespace, label_selector=label_selector
         )
         for pod in pods.items:
@@ -369,7 +376,7 @@ async def fetch_prometheus_metric(query) -> float | None:
                     value = float(result[0]["value"][1])
                     return value
                 else:
-                    logger.warning("no data received in metric")
+                    logger.warning(f"no data received in metric: {query=}, {data=}")
                     return None
             else:
                 logger.error(f"prometheus error: {data['error']}")
@@ -389,7 +396,7 @@ def read_file(file_path):
 async def load_autoscaler_configs() -> list[ScalingConfig]:
     result = []
 
-    spec = await read_file_async("/etc/unip-autoscaler/spec.yaml")
+    spec = await read_file_async(AUTOSCALER_SPEC_FILE)
     configs = list(yaml.safe_load_all(spec))
 
     validator = jsonschema.Draft202012Validator(SCALING_CONFIG_SCHEMA)
@@ -406,14 +413,18 @@ async def load_autoscaler_configs() -> list[ScalingConfig]:
 
 def get_cpu_ram_query(deployment_name: str, time_window=300):
     queries = {
-        "cpu": "sum(rate(container_cpu_usage_seconds_total{"
-        f'pod=~"{deployment_name}-.*"'
-        "}"
-        f"[{time_window}s])) by (pod) * 100",
-        "memory": "avg by (pod) (avg_over_time(container_memory_working_set_bytes{"
-        f'pod=~"{deployment_name}-.*"'
-        "}"
-        f"[{time_window}s:])) / 1024 / 1024",
+        "cpu": (
+            "sum(rate(container_cpu_usage_seconds_total{"
+            f'pod=~"{deployment_name}-.*"'
+            "}"
+            f"[{time_window}s])) by (pod) * 100"
+        ),
+        "memory": (
+            "avg by (pod) (avg_over_time(container_memory_working_set_bytes{"
+            f'pod=~"{deployment_name}-.*"'
+            "}"
+            f"[{time_window}s:])) / 1024 / 1024"
+        ),
     }
     return queries
 
@@ -450,23 +461,20 @@ async def get_replicas_delta(config: ScalingConfig) -> int:
         rule = config["scalingRules"]["prometheusMetric"]
         prometheus_query = rule["query"]
         value = await fetch_prometheus_metric(prometheus_query)
-        logger.debug(f"Prometheus metric: {value}")
+
         if value is None:
             return 0
-
         if value > rule["thresholdUp"]:
             return rule["stepUp"]
-        elif value < rule["thresholdDown"]:
-            return rule["stepDown"]
-        else:
-            return 0
+        if value < rule["thresholdDown"]:
+            return -rule["stepDown"]
+        return 0
     else:
         deployment = await get_deployment_from_config(config)
         deployment_name = deployment.metadata.name
         queries = get_cpu_ram_query(deployment_name, config["timeWindow"])
         cpu_value = await fetch_prometheus_metric(queries["cpu"])
         memory_value = await fetch_prometheus_metric(queries["memory"])
-        logger.debug(f"CPU: {cpu_value}%, RAM: {memory_value}M")
 
         rule_up = config["scalingRules"]["scaleUp"]
         rule_down = config["scalingRules"]["scaleDown"]
@@ -476,13 +484,12 @@ async def get_replicas_delta(config: ScalingConfig) -> int:
             and memory_value > rule_up["memoryThreshold"]
         ):
             return rule_up["step"]
-        elif (
+        if (
             cpu_value < rule_down["cpuThreshold"]
             and memory_value < rule_down["memoryThreshold"]
         ):
-            return rule_down["step"]
-        else:
-            return 0
+            return -rule_down["step"]
+        return 0
 
 
 async def autoscale_target(config: ScalingConfig) -> None:
@@ -505,13 +512,12 @@ async def autoscale_target(config: ScalingConfig) -> None:
     current_replicas = deployment.spec.replicas
 
     new_replicas = current_replicas + replicas_delta
-    new_replicas = min(
-        config["maxReplicas"],
-        max(
-            config["minReplicas"],
-            new_replicas,
-        ),
-    )
+
+    if new_replicas < config["minReplicas"]:
+        new_replicas = config["minReplicas"]
+
+    if new_replicas > config["maxReplicas"]:
+        new_replicas = config["maxReplicas"]
 
     if new_replicas == current_replicas:
         logger.info(f"replica count is already desired for {target}")
@@ -519,8 +525,7 @@ async def autoscale_target(config: ScalingConfig) -> None:
 
     if new_replicas != 0:
         logger.info(f"scaling {target} from {current_replicas} to {new_replicas}")
-        # await scale_deployment(deployment, new_replicas)
-        await asyncio.sleep(10)
+        return await scale_deployment(deployment, new_replicas)
 
     service = await get_service_from_config(config)
     if service is None:
@@ -528,5 +533,4 @@ async def autoscale_target(config: ScalingConfig) -> None:
         return
 
     logger.info(f"hibernating {target} from {current_replicas}")
-    # await hibernate(deployment, service, deployment.metadata.namespace)
-    await asyncio.sleep(10)
+    return await hibernate(deployment, service, deployment.metadata.namespace)

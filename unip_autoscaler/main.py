@@ -1,52 +1,49 @@
-from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
 import base64
 from contextlib import asynccontextmanager
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Header, Query
-from typing_extensions import Annotated
 from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
+from typing_extensions import Annotated
 from ua_parser import user_agent_parser
-from urllib.parse import urlparse, parse_qsl, urlunparse, urlencode
 
-
-from .user_agents import USER_AGENTS_CONFIG
-from .logger import logger
 from .functions import (
     autoscale_target,
-    get_deployment,
     check_readiness_probe,
+    get_deployment,
     get_service,
-    is_service_ready,
-    wakeup_ingress,
     hibernate_by_deployment,
-    scale_deployment,
     hibernate_by_service,
+    is_service_ready,
     load_autoscaler_configs,
+    scale_deployment,
+    wakeup_ingress,
 )
+from .k8s_client import k8s
+from .logger import logger
 from .settings import AUTOSCALER_READINESS_LIMIT, AUTOSCALER_READINESS_TIMEOUT
+from .user_agents import USER_AGENTS_CONFIG
 
-
-scheduler = BackgroundScheduler()
-
-
-def run_task(task, *args, **kwargs):
-    asyncio.run(task(*args, **kwargs))
+scheduler = AsyncIOScheduler()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await k8s.init_client()
+
     # TODO: обновлять конфиги через watch
     configs = await load_autoscaler_configs()
 
-    for config in configs:
+    for cfg in configs:
         scheduler.add_job(
-            run_task,
+            autoscale_target,
             trigger="interval",
-            seconds=config["cooldown"],
-            args=[autoscale_target],
-            kwargs={"config": config},
+            seconds=10,
+            kwargs={"config": cfg},
         )
 
     scheduler.start()

@@ -15,7 +15,7 @@ data:
         # нужно указать хотя бы один из порогов cpuThreshold, memoryThreshold
         # ЛИБО метрику из Prometheus
         # Prometheus-запрос для этого соберется автоматически
-        # в формате sum by (pod) (rate(container_cpu_usage_seconds_total{pod_name=~"my-deployment-.*"}[5m]))
+        # в формате sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"my-deployment-.*"}[5m]))
         cpuThreshold: 20  # пороговое использование CPU
         memoryThreshold: 300  # пороговое использование RAM
       scaleDown:
@@ -34,7 +34,7 @@ data:
     scalingRules:
       prometheusMetric:
         query: |
-          sum by (pod) (rate(container_cpu_usage_seconds_total{pod_name=~"mnist-mlcmp-deployment-.*"}[1m]))
+          sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"mnist-mlcmp-deployment-.*"}[1m]))
         thresholdUp: 0.5
         thresholdDown: 0.1
         stepUp: 1

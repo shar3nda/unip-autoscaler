@@ -50,6 +50,10 @@ AUTOSCALER_READINESS_PROBE_FAILURE_THRESHOLD = int(
         "300",
     )
 )
+AUTOSCALER_SPEC_FILE = os.environ.get(
+    "AUTOSCALER_SPEC_FILE",
+    "/etc/unip-autoscaler/spec.yaml",
+)
 PROMETHEUS_URL = os.environ.get(
     "PROMETHEUS_URL",
     "http://prometheus.unip-system-prometheus.svc.cluster.local:9090/prometheus/api/v1/query",
