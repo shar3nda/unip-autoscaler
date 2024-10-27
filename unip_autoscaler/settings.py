@@ -52,5 +52,5 @@ AUTOSCALER_READINESS_PROBE_FAILURE_THRESHOLD = int(
 )
 PROMETHEUS_URL = os.environ.get(
     "PROMETHEUS_URL",
-    "http://prometheus.unip-system-prometheus.svc.cluster.local:9090/api/v1/query",
+    "http://prometheus.unip-system-prometheus.svc.cluster.local:9090/prometheus/api/v1/query",
 )
