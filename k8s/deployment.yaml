@@ -18,7 +18,7 @@ spec:
       serviceAccountName: unip-autoscaler
       containers:
         - name: unip-autoscaler
-          image: platform-reg.stratpro.hse.ru/registry-user/unip-autoscaler:v1
+          image: platform-reg.stratpro.hse.ru/registry-user/unip-autoscaler:v2
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
