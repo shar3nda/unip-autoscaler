@@ -375,11 +375,21 @@ async def fetch_prometheus_metric(query) -> float | None:
                 return None
 
 
+async def read_file_async(file_path):
+    content = await asyncio.to_thread(read_file, file_path)
+    return content
+
+
+def read_file(file_path):
+    with open(file_path, "r") as file:
+        return file.read()
+
+
 async def load_autoscaler_configs() -> list[ScalingConfig]:
     result = []
 
-    with open('/etc/unip-autoscaler/spec.yaml') as f:
-        configs = yaml.safe_load_all(f)
+    spec = await read_file_async("autoscaler-config.yaml")
+    configs = list(yaml.safe_load(spec))
 
     validator = jsonschema.Draft202012Validator(SCALING_CONFIG_SCHEMA)
 
