@@ -388,7 +388,7 @@ def read_file(file_path):
 async def load_autoscaler_configs() -> list[ScalingConfig]:
     result = []
 
-    spec = await read_file_async("autoscaler-config.yaml")
+    spec = await read_file_async("/etc/unip-autoscaler/spec.yaml")
     configs = list(yaml.safe_load(spec))
 
     validator = jsonschema.Draft202012Validator(SCALING_CONFIG_SCHEMA)
