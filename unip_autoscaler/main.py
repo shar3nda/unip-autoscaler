@@ -44,6 +44,7 @@ async def watch_configmap():
         name="autoscaler-props",
         namespace="unip-system-autoscaler",
     ):
+        logger.info(f"Event: {event}")
         if event["type"] in ("MODIFIED", "ADDED"):
             logger.info("configMap changed, reloading autoscaler configurations")
             await init_scheduler()
