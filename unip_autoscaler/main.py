@@ -50,7 +50,7 @@ async def watch_configmap():
 
 
 async def init_scheduler():
-    asyncio.sleep(5)
+    await asyncio.sleep(5)
     configs = await load_autoscaler_configs()
 
     scheduler.remove_all_jobs()
