@@ -486,6 +486,9 @@ async def get_replicas_delta(config: ScalingConfig) -> int:
         rule_up = config["scalingRules"]["scaleUp"]
         rule_down = config["scalingRules"]["scaleDown"]
 
+        if cpu_value is None or memory_value is None:
+            return 0
+
         if (
             cpu_value > rule_up["cpuThreshold"]
             and memory_value > rule_up["memoryThreshold"]
