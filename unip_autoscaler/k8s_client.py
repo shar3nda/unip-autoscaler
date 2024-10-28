@@ -9,7 +9,7 @@ class KubernetesClient:
 
     async def init_client(self):
         try:
-            await config.load_incluster_config()
+            config.load_incluster_config()
         except config.ConfigException:
             await config.load_kube_config()
 
