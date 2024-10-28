@@ -374,12 +374,17 @@ async def fetch_prometheus_metric(query) -> float | None:
             data = await response.json()
             if data["status"] == "success":
                 result = data["data"]["result"]
-                if result:
-                    value = float(result[0]["value"][1])
-                    return value
-                else:
-                    logger.warning(f"no data received in metric: {query=}, {data=}")
+                total = 0
+                count = 0
+                for item in result:
+                    if item["value"][1] != "0":
+                        total += float(item["value"][1])
+                        count += 1
+
+                if count == 0:
                     return None
+
+                return total / count
             else:
                 logger.error(f"prometheus error: {data['error']}")
                 return None
