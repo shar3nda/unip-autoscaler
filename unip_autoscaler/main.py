@@ -5,6 +5,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Header, Query
+from kubernetes_asyncio import watch
 from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
@@ -35,12 +36,24 @@ from .user_agents import USER_AGENTS_CONFIG
 scheduler = AsyncIOScheduler()
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await k8s.init_client()
+async def watch_configmap():
+    w = watch.Watch()
 
-    # TODO: обновлять конфиги через watch
+    async for event in w.stream(
+        k8s.coreV1API.read_namespaced_config_map,
+        name="autoscaler-props",
+        namespace="unip-system-autoscaler",
+    ):
+        if event["type"] in ("MODIFIED", "ADDED"):
+            logger.info("configMap changed, reloading autoscaler configurations")
+            await init_scheduler()
+
+
+async def init_scheduler():
+    asyncio.sleep(5)
     configs = await load_autoscaler_configs()
+
+    scheduler.remove_all_jobs()
 
     for cfg in configs:
         scheduler.add_job(
@@ -50,11 +63,23 @@ async def lifespan(app: FastAPI):
             kwargs={"config": cfg},
         )
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await k8s.init_client()
+
+    await init_scheduler()
     scheduler.start()
     logger.info("Scheduler started")
-    yield
-    scheduler.shutdown()
-    logger.info("Scheduler stopped")
+
+    watch_task = asyncio.create_task(watch_configmap())
+    try:
+        yield
+    finally:
+        watch_task.cancel()
+        await watch_task
+        scheduler.shutdown()
+        logger.info("Scheduler stopped")
 
 
 app = FastAPI(docs_url=None, redoc_url=None, lifespan=lifespan)
