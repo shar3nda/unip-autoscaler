@@ -64,3 +64,4 @@ PROMETHEUS_URL = os.environ.get(
     "PROMETHEUS_URL",
     "http://prometheus.unip-system-prometheus.svc.cluster.local:9090/prometheus/api/v1/query",
 )
+DEBUG = os.environ.get("DEBUG") == "true"

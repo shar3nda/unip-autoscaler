@@ -13,8 +13,8 @@ data:
       prometheusMetric:
         query: |
           sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"stress-ng-test-.*"}[1m]))
-        thresholdUp: 0.5
-        thresholdDown: 0.1
+        thresholdUp: 50
+        thresholdDown: 25
         stepUp: 1
         stepDown: 1
     maxReplicas: 10

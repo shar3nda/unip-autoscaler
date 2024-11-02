@@ -371,15 +371,17 @@ async def fetch_prometheus_metric(query) -> float | None:
                 logger.error(f"prometheus error: {response_text}")
                 return None
 
+            logger.debug(f"prometheus query: {query}")
+            logger.debug(f"prometheus response: {response}")
+
             data = await response.json()
             if data["status"] == "success":
                 result = data["data"]["result"]
                 total = 0
                 count = 0
                 for item in result:
-                    if item["value"][1] != "0":
-                        total += float(item["value"][1])
-                        count += 1
+                    total += float(item["value"][1])
+                    count += 1
 
                 if count == 0:
                     return None
@@ -512,6 +514,7 @@ async def autoscale_target(config: ScalingConfig) -> None:
     target = config["target"]
 
     replicas_delta = await get_replicas_delta(config)
+    logger.debug(f"{replicas_delta=}")
     if replicas_delta == 0:
         logger.info(f"replicas_delta is 0, skip scaling {target}")
         return
@@ -524,6 +527,7 @@ async def autoscale_target(config: ScalingConfig) -> None:
         return
 
     current_replicas = deployment.spec.replicas
+    logger.debug(f"{current_replicas=}")
 
     new_replicas = current_replicas + replicas_delta
 
@@ -532,6 +536,8 @@ async def autoscale_target(config: ScalingConfig) -> None:
 
     if new_replicas > config["maxReplicas"]:
         new_replicas = config["maxReplicas"]
+
+    logger.debug(f"{new_replicas=}")
 
     if new_replicas == current_replicas:
         logger.info(f"replica count is already desired for {target}")
