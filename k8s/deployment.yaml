@@ -21,8 +21,8 @@ spec:
           image: registry-platform-dev-cs-hse.objectoriented.ru/ikrupnov/unip-autoscaler:v2
           imagePullPolicy: Always
           envFrom:
-            - configMapRef:
-                name: autoscaler-config
+          - configMapRef:
+              name: autoscaler-config
           volumeMounts:
             - name: autoscaler-props
               mountPath: /etc/unip-autoscaler

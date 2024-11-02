@@ -8,3 +8,4 @@ data:
   AUTOSCALER_READINESS_LIMIT: "30"
   AUTOSCALER_READINESS_TIMEOUT: "1"
   PROMETHEUS_URL: "http://prometheus-operated.unip-system-prometheus.svc.cluster.local:9090/api/v1/query?query="
+  DEBUG: "true"
