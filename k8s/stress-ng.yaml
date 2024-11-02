@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stress-ng-test
+  namespace: unip-system-autoscaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stress-ng-test
+  template:
+    metadata:
+      labels:
+        app: stress-ng-test
+    spec:
+      containers:
+        - name: stress-ng
+          image: polinux/stress-ng
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              stress-ng \
+              $( [ -n "$CPU_THREADS" ] && echo "--cpu $CPU_THREADS" ) \
+              $( [ -n "$MEMORY_SIZE" ] && echo "--vm 1 --vm-bytes $MEMORY_SIZE" ) \
+              --timeout "$DURATION" \
+              && while true; do sleep 86400; done
+          env:
+            - name: CPU_THREADS
+              value: "1"
+            - name: MEMORY_SIZE
+              value: "256M"
+            - name: DURATION
+              value: "10s"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"

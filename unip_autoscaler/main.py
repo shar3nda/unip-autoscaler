@@ -39,6 +39,7 @@ scheduler = AsyncIOScheduler()
 async def watch_configmap():
     w = watch.Watch()
 
+    # FIXME: doesn't work for some reason
     async for event in w.stream(
         k8s.coreV1API.read_namespaced_config_map,
         name="autoscaler-props",

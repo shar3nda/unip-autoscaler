@@ -7,39 +7,16 @@ data:
   spec.yaml: |
     target:
       kind: deployment
-      name: student-chatbot-mlcmp-deployment
-      namespace: pu-test-pa-student-chatbot
-    scalingRules:
-      scaleUp:
-        step: 2  # сколько реплик добавлять
-        # нужно указать хотя бы один из порогов cpuThreshold, memoryThreshold
-        # ЛИБО метрику из Prometheus
-        # Prometheus-запрос для этого соберется автоматически
-        # в формате sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"my-deployment-.*"}[5m]))
-        cpuThreshold: 20  # пороговое использование CPU
-        memoryThreshold: 300  # пороговое использование RAM
-      scaleDown:
-        step: 10
-        cpuThreshold: 1
-        memoryThreshold: 200
-    timeWindow: 300  # время в секундах, в течение которого собираются метрики
-    maxReplicas: 10
-    minReplicas: 0  # параметр minReplicas=0 включает гибернацию
-    cooldown: 300  # время в секундах, в течение которого не будет производиться масштабирование
-    ---
-    target:
-      kind: deployment
-      name: student-chatbot-mlcmp-deployment
-      namespace: pu-test-pa-student-chatbot
+      name: stress-ng-test
+      namespace: unip-system-autoscaler
     scalingRules:
       prometheusMetric:
         query: |
-          sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"mnist-mlcmp-deployment-.*"}[1m]))
+          sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"stress-ng-test-.*"}[1m]))
         thresholdUp: 0.5
         thresholdDown: 0.1
         stepUp: 1
         stepDown: 1
-    timeWindow: 100
-    maxReplicas: 3
-    minReplicas: 1
-    cooldown: 100  # время в секундах, в течение которого не будет производиться масштабирование
+    maxReplicas: 10
+    minReplicas: 1  # параметр minReplicas=0 включает гибернацию
+    cooldown: 300  # время в секундах, в течение которого не будет производиться масштабирование
