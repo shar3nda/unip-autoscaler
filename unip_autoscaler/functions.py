@@ -366,13 +366,13 @@ async def fetch_prometheus_metric(query) -> float | None:
     """
     async with aiohttp.ClientSession() as session:
         async with session.get(PROMETHEUS_URL, params={"query": query}) as response:
+            response_text = await response.text()
             if response.status != 200:
-                response_text = await response.text()
                 logger.error(f"prometheus error: {response_text}")
                 return None
 
             logger.debug(f"prometheus query: {query}")
-            logger.debug(f"prometheus response: {response}")
+            logger.debug(f"prometheus response: {response_text}")
 
             data = await response.json()
             if data["status"] == "success":
