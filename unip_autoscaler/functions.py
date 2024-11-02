@@ -365,13 +365,12 @@ async def fetch_prometheus_metric(query) -> float | None:
     Ожидается, что метрика возвращает одно вещественное число.
     """
     async with aiohttp.ClientSession() as session:
+        logger.debug(f"prometheus query: {query}")
         async with session.get(PROMETHEUS_URL, params={"query": query}) as response:
             response_text = await response.text()
             if response.status != 200:
                 logger.error(f"prometheus error: {response_text}")
                 return None
-
-            logger.debug(f"prometheus query: {query}")
             logger.debug(f"prometheus response: {response_text}")
 
             data = await response.json()
