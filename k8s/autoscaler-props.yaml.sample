@@ -7,16 +7,16 @@ data:
   spec.yaml: |
     target:
       kind: deployment
-      name: stress-ng-test
+      name: pythonserver
       namespace: unip-system-autoscaler
     scalingRules:
       prometheusMetric:
         query: |
-          sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"stress-ng-test-.*"}[1m]))
+          sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"pythonserver-.*"}[1m])) * 100
         thresholdUp: 50
         thresholdDown: 25
         stepUp: 1
         stepDown: 1
-    maxReplicas: 10
-    minReplicas: 1  # параметр minReplicas=0 включает гибернацию
-    cooldown: 300  # время в секундах, в течение которого не будет производиться масштабирование
+    maxReplicas: 3
+    minReplicas: 0  # параметр minReplicas=0 включает гибернацию
+    cooldown: 10  # время в секундах, в течение которого не будет производиться масштабирование

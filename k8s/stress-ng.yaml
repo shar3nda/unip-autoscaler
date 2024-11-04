@@ -30,7 +30,7 @@ spec:
             - name: MEMORY_SIZE
               value: "256M"
             - name: DURATION
-              value: "10s"
+              value: "60s"
           resources:
             requests:
               cpu: "500m"

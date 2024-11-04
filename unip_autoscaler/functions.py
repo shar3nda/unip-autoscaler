@@ -254,7 +254,8 @@ proxy_set_header AUTOSCALER_APP_INGRESS_REWRITE %s;
     )
     nginxConfig = (
         ingress.metadata.annotations.get(
-            "nginx.ingress.kubernetes.io/configuration-snippet"
+            "nginx.ingress.kubernetes.io/configuration-snippet",
+            "",
         )
         + additionalHeaders
     )
@@ -530,13 +531,17 @@ async def autoscale_target(config: ScalingConfig) -> None:
 
     new_replicas = current_replicas + replicas_delta
 
+    logger.debug(f"{new_replicas=}")
+    logger.debug(f"{config['minReplicas']=}")
+    logger.debug(f"{config['maxReplicas']=}")
+
     if new_replicas < config["minReplicas"]:
         new_replicas = config["minReplicas"]
 
     if new_replicas > config["maxReplicas"]:
         new_replicas = config["maxReplicas"]
 
-    logger.debug(f"{new_replicas=}")
+    logger.debug(f"corrected {new_replicas=}")
 
     if new_replicas == current_replicas:
         logger.info(f"replica count is already desired for {target}")

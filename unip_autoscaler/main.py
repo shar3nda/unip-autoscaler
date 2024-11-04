@@ -52,7 +52,8 @@ async def watch_configmap():
 
 
 async def init_scheduler():
-    await asyncio.sleep(5)
+    logger.info("Initializing scheduler")
+    logger.info("Loading autoscaler configurations")
     configs = await load_autoscaler_configs()
 
     scheduler.remove_all_jobs()
@@ -64,6 +65,9 @@ async def init_scheduler():
             seconds=AUTOSCALER_CHECK_INTERVAL,
             kwargs={"config": cfg},
         )
+
+    logger.info("Scheduler initialized")
+    return
 
 
 @asynccontextmanager
@@ -173,6 +177,8 @@ async def wakeup(
             url_parts[4] = urlencode(query)
             redirect_url = urlunparse(url_parts)
 
+            logger.info(f"Redirecting to {redirect_url}")
+
             return RedirectResponse(url=redirect_url, status_code=307)
         if await is_service_ready(
             namespace=autoscaler_app_namespace, name=autoscaler_app_service
@@ -192,4 +198,5 @@ async def wakeup(
             logger.info(f"Service {autoscaler_app_service} is not ready {i}")
             await asyncio.sleep(AUTOSCALER_READINESS_TIMEOUT)
 
+    logger.info(f"Redirecting to {request.url}")
     return RedirectResponse(url=request.url, status_code=307)
