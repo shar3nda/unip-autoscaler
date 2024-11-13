@@ -7,16 +7,80 @@ data:
   spec.yaml: |
     target:
       kind: deployment
-      name: pythonserver
-      namespace: unip-system-autoscaler
-    scalingRules:
-      prometheusMetric:
-        query: |
-          sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"pythonserver-.*"}[1m])) * 100
-        thresholdUp: 50
-        thresholdDown: 25
-        stepUp: 1
-        stepDown: 1
-    maxReplicas: 3
-    minReplicas: 0  # параметр minReplicas=0 включает гибернацию
-    cooldown: 10  # время в секундах, в течение которого не будет производиться масштабирование
+      name: tesseract-app-deployment
+      namespace: pu-test-tesseract
+    states:
+      - replicas: 1
+        transitions:
+          - nextState: 2
+            conditions:
+              allOf:
+                - metric: mycpu
+                  operator: ">"
+                  value: 20.0
+                - metric: queries
+                  operator: ">"
+                  value: 200
+      - replicas: 2
+        transitions:
+          - nextState: 3
+            conditions:
+              allOf:
+                - metric: queries
+                  operator: ">"
+                  value: 500
+          - nextState: 1
+            conditions:
+              anyOf:
+                - metric: mycpu
+                  operator: "<"
+                  value: 10.0
+                - metric: queries
+                  operator: "<"
+                  value: 200
+      - replicas: 3
+        transitions:
+          - nextState: 4
+            conditions:
+              allOf:
+                - metric: mycpu
+                  operator: ">"
+                  value: 70.0
+                - metric: mymemory
+                  operator: ">"
+                  value: 500.0
+          - nextState: 2
+            conditions:
+              anyOf:
+                - metric: mycpu
+                  operator: "<"
+                  value: 30.0
+                - metric: mymemory
+                  operator: "<"
+                  value: 200.0
+      - replicas: 4
+        # transitions:
+        #   - nextState: 3
+        #     conditions:
+        #       anyOf:
+        #         - metric: mycpu
+        #           operator: "<"
+        #           value: 60.0
+        #         - metric: mymemory
+        #           operator: "<"
+        #           value: 400.0
+    prometheusMetrics:
+      - name: mycpu
+        query: >-
+          sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"{{ DEPLOYMENT_NAME }}-.*"}[5m])) * 100
+      - name: mymemory
+        query: >-
+          sum(container_memory_usage_bytes{pod=~"{{ DEPLOYMENT_NAME }}-.*"}) / 1024 / 1024
+      - name: queries
+        query: >-
+          sum(rate(nginx_ingress_controller_requests{ingress="service-api-ingress", namespace="{{ NAMESPACE }}"}[10m]))
+    scalingOptions:
+      # cpuTimeWindow: 300
+      # memoryTimeWindow: 300
+      cooldown: 300
+      hibernationEnabled: false

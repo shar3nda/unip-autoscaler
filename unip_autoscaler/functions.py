@@ -2,14 +2,20 @@ import asyncio
 import base64
 import re
 from datetime import datetime
+from typing import List, Optional
 
 import aiohttp
-import jsonschema
+from jinja2 import Environment, Template, meta
 import yaml
 from kubernetes import client
 from kubernetes.client import ApiException, V1Deployment, V1Service
+from pydantic import ValidationError
 
-from .autoscaling_config import SCALING_CONFIG_SCHEMA, ScalingConfig
+from .autoscaling_config import (
+    Condition,
+    ScalingConfig,
+    State,
+)
 from .cooldown import has_cooldown, set_scaling_timestamp
 from .k8s_client import k8s
 from .lock import get_resource_lock
@@ -360,7 +366,7 @@ async def is_any_pod_ready(srvc: V1Service):
         return False
 
 
-async def fetch_prometheus_metric(query) -> float | None:
+async def fetch_prometheus_metric(query) -> Optional[float]:
     """
     Функция для запроса метрики из Prometheus.
     Ожидается, что метрика возвращает одно вещественное число.
@@ -402,163 +408,194 @@ def read_file(file_path):
         return file.read()
 
 
-async def load_autoscaler_configs() -> list[ScalingConfig]:
+async def load_autoscaler_configs() -> List[ScalingConfig]:
     result = []
 
     spec = await read_file_async(AUTOSCALER_SPEC_FILE)
     configs = list(yaml.safe_load_all(spec))
 
-    validator = jsonschema.Draft202012Validator(SCALING_CONFIG_SCHEMA)
-
     for config in configs:
         try:
-            validator.validate(config)
-            result.append(config)
-        except jsonschema.ValidationError as e:
+            instance = ScalingConfig(**config)
+            result.append(instance)
+        except ValidationError as e:
             logger.error(f"Invalid config: {e}")
+            continue
 
     return result
 
 
-def get_cpu_ram_query(deployment_name: str, time_window=300):
-    queries = {
-        "cpu": (
-            "sum(rate(container_cpu_usage_seconds_total{"
-            f'pod=~"{deployment_name}-.*"'
-            "}"
-            f"[{time_window}s])) by (pod) * 100"
-        ),
-        "memory": (
-            "avg by (pod) (avg_over_time(container_memory_working_set_bytes{"
-            f'pod=~"{deployment_name}-.*"'
-            "}"
-            f"[{time_window}s:])) / 1024 / 1024"
-        ),
-    }
-    return queries
+def get_cpu_query(deployment_name: str, time_window=300):
+    return (
+        "sum(rate(container_cpu_usage_seconds_total{"
+        f'pod=~"{deployment_name}-.*"'
+        "}"
+        f"[{time_window}s])) by (pod) * 100"
+    )
+
+
+def get_memory_query(deployment_name: str, time_window=300):
+    return (
+        "avg by (pod) (avg_over_time(container_memory_working_set_bytes{"
+        f'pod=~"{deployment_name}-.*"'
+        "}"
+        f"[{time_window}s:])) / 1024 / 1024"
+    )
 
 
 async def get_deployment_from_config(config: ScalingConfig) -> V1Deployment:
-    target = config["target"]
+    target = config.target
 
-    if target["kind"] == "deployment":
-        return await get_deployment(target["name"], target["namespace"])
+    if target.kind == "deployment":
+        return await get_deployment(target.name, target.namespace)
 
     if target["kind"] == "service":
-        service = await get_service(target["name"], target["namespace"])
-        deployment = await get_deployment_by_service(service)
-        return deployment
+        service = await get_service(target.name, target.namespace)
+        return await get_deployment_by_service(service)
 
 
 async def get_service_from_config(config: ScalingConfig) -> V1Service:
-    target = config["target"]
+    target = config.target
 
     if target["kind"] == "service":
-        return await get_service(target["name"], target["namespace"])
+        return await get_service(target.name, target.namespace)
 
     if target["kind"] == "deployment":
         deployment = await get_deployment_from_config(config)
         return await get_service_by_deployment(deployment)
 
 
-async def get_replicas_delta(config: ScalingConfig) -> int:
+async def render_query_template(config: ScalingConfig, query: str) -> str:
     """
-    Возвращает изменение количества реплик в соответствии с правилами масштабирования.
-    Не учитывает параметры minReplicas и maxReplicas.
+    Рендерит шаблон запроса к Prometheus.
     """
-    if config["scalingRules"].get("prometheusMetric"):
-        rule = config["scalingRules"]["prometheusMetric"]
-        prometheus_query = rule["query"]
-        value = await fetch_prometheus_metric(prometheus_query)
 
-        if value is None:
-            return 0
-        if value > rule["thresholdUp"]:
-            return rule["stepUp"]
-        if value < rule["thresholdDown"]:
-            return -rule["stepDown"]
-        return 0
+    values = {
+        "DEPLOYMENT_NAME": None,
+        "SERVICE_NAME": None,
+        "NAMESPACE": None,
+        # TODO: implement this
+        # "SERVICE_API_INGRESS_NAME": None,
+        # "FILES_API_INGRESS_NAME": None,
+    }
+
+    env = Environment()
+    ast = env.parse(query)
+    # get variables from query
+    variables = meta.find_undeclared_variables(ast)
+
+    for v in variables:
+        if v == "DEPLOYMENT_NAME":
+            values["DEPLOYMENT_NAME"] = (
+                await get_deployment_from_config(config)
+            ).metadata.name
+        elif v == "SERVICE_NAME":
+            values["SERVICE_NAME"] = (
+                await get_service_from_config(config)
+            ).metadata.name
+        elif v == "NAMESPACE":
+            values["NAMESPACE"] = config.target.namespace
+        else:
+            raise ValueError(f"unknown variable: {v}")
+
+    logger.debug(f"rendering template {query} with {values=}")
+    template = Template(query.strip())
+
+    return template.render(values)
+
+
+async def check_condition(config: ScalingConfig, condition: Condition) -> bool:
+    if condition.metric == "cpu":
+        query = get_cpu_query(config.target.name, config.scalingOptions.cpuTimeWindow)
+    elif condition.metric == "memory":
+        query = get_memory_query(
+            config.target.name, config.scalingOptions.memoryTimeWindow
+        )
     else:
-        deployment = await get_deployment_from_config(config)
-        deployment_name = deployment.metadata.name
-        queries = get_cpu_ram_query(deployment_name, config["timeWindow"])
-        cpu_value = await fetch_prometheus_metric(queries["cpu"])
-        memory_value = await fetch_prometheus_metric(queries["memory"])
+        query = config.get_metric_by_name(condition.metric).query
+        query = await render_query_template(config, query)
+        if query is None:
+            raise ValueError(f"Unknown metric: {condition.metric}")
 
-        rule_up = config["scalingRules"]["scaleUp"]
-        rule_down = config["scalingRules"]["scaleDown"]
+    value = await fetch_prometheus_metric(query)
+    if value is None:
+        return False
 
-        if cpu_value is None or memory_value is None:
-            return 0
+    if condition.operator == "<":
+        return value < condition.value
 
-        if (
-            cpu_value > rule_up["cpuThreshold"]
-            and memory_value > rule_up["memoryThreshold"]
-        ):
-            return rule_up["step"]
-        if (
-            cpu_value < rule_down["cpuThreshold"]
-            and memory_value < rule_down["memoryThreshold"]
-        ):
-            return -rule_down["step"]
+    if condition.operator == ">":
+        return value > condition.value
+
+    raise ValueError(f"Unknown operator: {condition.operator}")
+
+
+async def get_new_state(config: ScalingConfig, current_state: State) -> State:
+    for transition in current_state.transitions:
+        all_of = transition.conditions.allOf
+        any_of = transition.conditions.anyOf
+        if all_of:
+            for condition in all_of:
+                if not await check_condition(config, condition):
+                    return None
+            return config.get_state_by_number(transition.nextState)
+        else:
+            for condition in any_of:
+                if await check_condition(config, condition):
+                    return config.get_state_by_number(transition.nextState)
+    return None
+
+
+async def get_new_replica_count(
+    config: ScalingConfig, current_replica_count: int
+) -> int:
+    """
+    Возвращает новое количество реплик в соответствии с правилами масштабирования.
+    """
+    # hibernation is disabled only on api query
+    if current_replica_count == 0:
         return 0
+
+    try:
+        current_state = config.get_current_state(current_replica_count)
+    except ValueError as e:
+        logger.error(f"error getting current state: {e}")
+        return 0
+
+    try:
+        new_state = await get_new_state(config, current_state)
+    except ValueError as e:
+        logger.error(f"error getting new state: {e}")
+        return 0
+
+    if new_state is None:
+        logger.debug("no transition rules matched")
+        return 0
+
+    return new_state.replicas
 
 
 async def autoscale_target(config: ScalingConfig) -> None:
     """Масштабирует объект в соответствии с конфигурацией."""
 
-    if await has_cooldown(config["target"], config["cooldown"]):
+    if await has_cooldown(config.target, config.scalingOptions.cooldown):
         logger.info("cooldown is active, skip scaling")
         return
 
-    target = config["target"]
+    target = config.target
 
-    replicas_delta = await get_replicas_delta(config)
-    logger.debug(f"{replicas_delta=}")
-    if replicas_delta == 0:
-        logger.info(f"replicas_delta is 0, skip scaling {target}")
-        return
-
-    # TODO: maybe cache deployment and service objects
     deployment = await get_deployment_from_config(config)
-
     if deployment is None:
         logger.error(f"deployment to autoscale not found for {target}")
         return
 
-    current_replicas = deployment.spec.replicas
-    logger.debug(f"{current_replicas=}")
+    current_replica_count = deployment.spec.replicas
+    logger.debug(f"{current_replica_count=}")
 
-    new_replicas = current_replicas + replicas_delta
+    new_replica_count = await get_new_replica_count(config, current_replica_count)
+    logger.debug(f"{new_replica_count=}")
 
-    logger.debug(f"{new_replicas=}")
-    logger.debug(f"{config['minReplicas']=}")
-    logger.debug(f"{config['maxReplicas']=}")
-
-    if new_replicas < config["minReplicas"]:
-        new_replicas = config["minReplicas"]
-
-    if new_replicas > config["maxReplicas"]:
-        new_replicas = config["maxReplicas"]
-
-    logger.debug(f"corrected {new_replicas=}")
-
-    if new_replicas == current_replicas:
-        logger.info(f"replica count is already desired for {target}")
-        return
-
-    if new_replicas != 0:
-        logger.info(f"scaling {target} from {current_replicas} to {new_replicas}")
-        await scale_deployment(deployment, new_replicas)
-        await set_scaling_timestamp(target, datetime.now())
-        return
-
-    service = await get_service_from_config(config)
-    if service is None:
-        logger.error(f"service to autoscale not found for {target}")
-        return
-
-    logger.info(f"hibernating {target} from {current_replicas}")
-    await hibernate(deployment, service, deployment.metadata.namespace)
+    logger.info(f"scaling {target} from {current_replica_count} to {new_replica_count}")
+    await scale_deployment(deployment, new_replica_count)
     await set_scaling_timestamp(target, datetime.now())
     return

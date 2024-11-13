@@ -1,6 +1,7 @@
 import asyncio
 import base64
 from contextlib import asynccontextmanager
+from typing import Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -17,6 +18,7 @@ from .functions import (
     check_readiness_probe,
     get_deployment,
     get_service,
+    get_service_from_config,
     hibernate_by_deployment,
     hibernate_by_service,
     is_service_ready,
@@ -34,6 +36,7 @@ from .settings import (
 from .user_agents import USER_AGENTS_CONFIG
 
 scheduler = AsyncIOScheduler()
+CONFIGS = None
 
 
 async def watch_configmap():
@@ -59,13 +62,16 @@ async def init_scheduler():
     scheduler.remove_all_jobs()
 
     for cfg in configs:
+        logger.info(f"Adding job for {cfg.target}")
+        logger.debug(f"{AUTOSCALER_CHECK_INTERVAL=}")
         scheduler.add_job(
             autoscale_target,
             trigger="interval",
             seconds=AUTOSCALER_CHECK_INTERVAL,
             kwargs={"config": cfg},
         )
-
+    global CONFIGS
+    CONFIGS = configs
     logger.info("Scheduler initialized")
     return
 
@@ -78,12 +84,12 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Scheduler started")
 
-    watch_task = asyncio.create_task(watch_configmap())
+    # watch_task = asyncio.create_task(watch_configmap())
     try:
         yield
     finally:
-        watch_task.cancel()
-        await watch_task
+        # watch_task.cancel()
+        # await watch_task
         scheduler.shutdown()
         logger.info("Scheduler stopped")
 
@@ -110,9 +116,17 @@ async def alert(alert: AlertRequestModel):
     namespace = alert.commonAnnotations.namespace
     service = alert.commonAnnotations.service
     logger.info(f"ALERT: {namespace}, {service}")
-    if service == "kogan-cl-mlcmp-svc":
-        return await hibernate_by_service(namespace, service)
-    logger.info("Skip service hibernation")
+
+    for cfg in CONFIGS:
+        svc = await get_service_from_config(cfg)
+        svc_name = svc.metadata.name
+        if not (cfg.target.namespace == namespace and svc_name == service):
+            continue
+        if not cfg.scalingOptions.hibernationEnabled:
+            logger.info("Hibernation disabled for service, skipping hibernation")
+        return await hibernate_by_service(namespace, svc_name)
+    logger.info("No matching configuration found, skipping hibernation")
+    return
 
 
 @app.post("/hibernate")
@@ -125,21 +139,21 @@ async def hibernate(deployment: Deployment):
 async def wakeup(
     path: str,
     request: Request,
-    retries: Annotated[int | None, Query()] = 0,
+    retries: Annotated[Optional[int], Query()] = 0,
     autoscaler_app_namespace: Annotated[
-        str | None, Header(convert_underscores=False)
+        Optional[str], Header(convert_underscores=False)
     ] = None,
     autoscaler_app_deployment: Annotated[
-        str | None, Header(convert_underscores=False)
+        Optional[str], Header(convert_underscores=False)
     ] = None,
     autoscaler_app_service: Annotated[
-        str | None, Header(convert_underscores=False)
+        Optional[str], Header(convert_underscores=False)
     ] = None,
     autoscaler_app_ingress: Annotated[
-        str | None, Header(convert_underscores=False)
+        Optional[str], Header(convert_underscores=False)
     ] = None,
     autoscaler_app_ingress_rewrite: Annotated[
-        str | None, Header(convert_underscores=False)
+        Optional[str], Header(convert_underscores=False)
     ] = None,
 ):
     user_agent = (
