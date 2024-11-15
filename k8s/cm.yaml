@@ -10,3 +10,4 @@ data:
   AUTOSCALER_CHECK_INTERVAL: "2"
   PROMETHEUS_URL: "http://prometheus-operated.unip-system-prometheus.svc.cluster.local:9090/api/v1/query"
   DEBUG: "true"
+  AUTOSCALER_NAMESPACE_REGEX: "^pu-[a-zA-Z-]+$"

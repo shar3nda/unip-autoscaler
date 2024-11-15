@@ -1,4 +1,5 @@
 import os
+import re
 
 AUTOSCALER_APP_SELECTOR_NAME = os.environ.get(
     "AUTOSCALER_APP_SELECTOR_NAME",
@@ -65,3 +66,5 @@ PROMETHEUS_URL = os.environ.get(
     "http://prometheus.unip-system-prometheus.svc.cluster.local:9090/prometheus/api/v1/query",
 )
 DEBUG = os.environ.get("DEBUG") == "true"
+AUTOSCALER_NAMESPACE_REGEX = os.environ.get("AUTOSCALER_NAMESPACE_REGEX", "^pu-.*$")
+NAMESPACE_REGEX = re.compile(AUTOSCALER_NAMESPACE_REGEX)

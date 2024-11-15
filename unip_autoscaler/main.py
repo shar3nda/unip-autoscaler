@@ -32,6 +32,7 @@ from .settings import (
     AUTOSCALER_CHECK_INTERVAL,
     AUTOSCALER_READINESS_LIMIT,
     AUTOSCALER_READINESS_TIMEOUT,
+    NAMESPACE_REGEX,
 )
 from .user_agents import USER_AGENTS_CONFIG
 
@@ -116,6 +117,9 @@ async def alert(alert: AlertRequestModel):
     namespace = alert.commonAnnotations.namespace
     service = alert.commonAnnotations.service
     logger.info(f"ALERT: {namespace}, {service}")
+    if not NAMESPACE_REGEX.match(namespace):
+        logger.info("Namespace does not match regex, skipping hibernation")
+        return
 
     for cfg in CONFIGS:
         svc = await get_service_from_config(cfg)
@@ -131,6 +135,9 @@ async def alert(alert: AlertRequestModel):
 
 @app.post("/hibernate")
 async def hibernate(deployment: Deployment):
+    if not NAMESPACE_REGEX.match(deployment.namespace):
+        logger.info("Namespace does not match regex, skipping hibernation")
+        return
     logger.info(f"Hibernating deployment {deployment.name}")
     return await hibernate_by_deployment(deployment.name, deployment.namespace)
 

@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import List, Optional
 
 import aiohttp
-from jinja2 import Environment, Template, meta
 import yaml
+from jinja2 import Environment, Template, meta
 from kubernetes import client
 from kubernetes.client import ApiException, V1Deployment, V1Service
 from pydantic import ValidationError
@@ -30,6 +30,7 @@ from .settings import (
     AUTOSCALER_READINESS_PROBE_PERIOD,
     AUTOSCALER_SERVICE_EXTERNAL_NAME,
     AUTOSCALER_SPEC_FILE,
+    NAMESPACE_REGEX,
     PROMETHEUS_URL,
 )
 
@@ -577,6 +578,10 @@ async def get_new_replica_count(
 
 async def autoscale_target(config: ScalingConfig) -> None:
     """Масштабирует объект в соответствии с конфигурацией."""
+
+    if not NAMESPACE_REGEX.match(config.target.namespace):
+        logger.info(f"{config.target.namespace=} does not match regex, skipping scaling")
+        return
 
     if await has_cooldown(config.target, config.scalingOptions.cooldown):
         logger.info("cooldown is active, skip scaling")
