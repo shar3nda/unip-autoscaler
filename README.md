@@ -65,64 +65,75 @@ metadata:
   namespace: unip-system-autoscaler
 data:
   spec.yaml: |
-    target:
-      kind: deployment # Тип объекта, deployment или service
-      name: tesseract-app-deployment # Имя объекта
-      namespace: pu-test-tesseract # Пространство имен
-    states:
-      # Каждое состояние содержит количество реплик и, опционально, условия перехода
-      # к следующему состоянию.
-      - replicas: 1
-        transitions:
-          - nextState: 2
-            conditions:
-              # Условия перехода между состояниями, где allOf - логическое И,
-              # anyOf - логическое ИЛИ (можно использовать только одно).
-              allOf:
-                # Условие состояит из имени метрики, оператора (">" или "<") и порогового
-                # значения (вещественное число).
-                - metric: mycpu
-                  operator: ">"
-                  value: 20.0
-                - metric: queries
-                  operator: ">"
-                  value: 200
-      - replicas: 2
-        transitions:
-          - nextState: 3
-            conditions:
-              allOf:
-                - metric: queries
-                  operator: ">"
-                  value: 500
-          - nextState: 1
-            conditions:
-              anyOf:
-                - metric: mycpu
-                  operator: "<"
-                  value: 10.0
-                - metric: queries
-                  operator: "<"
-                  value: 200
-      - replicas: 3
-        # У состояния может не быть переходов; тогда выход будет возможен только
-        # через автоматическую гибернацию.
-    prometheusMetrics:
-      # Метрики для мониторинга. Каждая метрика содержит имя и запрос PromQL.
-      # В запросе можно использовать переменные {{ DEPLOYMENT_NAME }}, {{ SERVICE_NAME }} и {{ NAMESPACE }}.
-      # Имеются встроенные метрики с названиями cpu и memory; здесь их указывать не нужно.
-      - name: mycpu
-        query: >-
-          sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"{{ DEPLOYMENT_NAME }}-.*"}[5m])) * 100
-      - name: mymemory
-        query: >-
-          sum(container_memory_usage_bytes{pod=~"{{ DEPLOYMENT_NAME }}-.*"}) / 1024 / 1024
-      - name: queries
-        query: >-
-          sum(rate(nginx_ingress_controller_requests{ingress="service-api-ingress", namespace="{{ NAMESPACE }}"}[10m]))
-    scalingOptions:
-      # cpuTimeWindow: 300 # Время окна для усреднения метрики cpu
-      # memoryTimeWindow: 300 # -//- memory
-      cooldown: 300 # Время ожидания перед следующим изменением количества реплик
-      hibernationEnabled: false # Включение автоматической гибернации
+    <yaml-документы через --->
+```
+
+```yaml
+# пример spec.yaml
+target:
+  kind: deployment # Тип объекта, deployment или service
+  name: tesseract-app-deployment # Имя объекта
+  namespace: pu-test-tesseract # Пространство имен
+states:
+  # Каждое состояние содержит количество реплик и, опционально, условия перехода
+  # к следующему состоянию.
+  - replicas: 1
+    transitions:
+      - nextState: 2
+        conditions:
+          # Условия перехода между состояниями, где allOf - логическое И,
+          # anyOf - логическое ИЛИ (можно использовать только одно).
+          allOf:
+            # Условие состояит из имени метрики, оператора (">" или "<") и порогового
+            # значения (вещественное число).
+            - metric: mycpu
+              operator: ">"
+              value: 20.0
+            - metric: queries
+              operator: ">"
+              value: 200
+  - replicas: 2
+    transitions:
+      - nextState: 3
+        conditions:
+          allOf:
+            - metric: queries
+              operator: ">"
+              value: 500
+      - nextState: 1
+        conditions:
+          anyOf:
+            - metric: mycpu
+              operator: "<"
+              value: 10.0
+            - metric: queries
+              operator: "<"
+              value: 200
+  - replicas: 3
+    # У состояния может не быть переходов; тогда выход будет возможен только
+    # через автоматическую гибернацию.
+prometheusMetrics:
+  # Метрики для мониторинга. Каждая метрика содержит имя и запрос PromQL.
+  # В запросе можно использовать переменные {{ DEPLOYMENT_NAME }}, {{ SERVICE_NAME }} и {{ NAMESPACE }}.
+  # Имеются встроенные метрики с названиями cpu и memory; здесь их указывать не нужно.
+  - name: mycpu
+    query: >-
+      sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"{{ DEPLOYMENT_NAME }}-.*"}[5m])) * 100
+  - name: mymemory
+    query: >-
+      sum(container_memory_usage_bytes{pod=~"{{ DEPLOYMENT_NAME }}-.*"}) / 1024 / 1024
+  - name: queries
+    query: >-
+      sum(rate(nginx_ingress_controller_requests{ingress="service-api-ingress", namespace="{{ NAMESPACE }}"}[10m]))
+scalingOptions:
+  # cpuTimeWindow: 300 # Время окна для усреднения метрики cpu
+  # memoryTimeWindow: 300 # -//- memory
+  cooldown: 300 # Время ожидания перед следующим изменением количества реплик
+  hibernationEnabled: false # Включение автоматической гибернации
+---
+target:
+  kind: service
+  name: service-api-ingress
+  namespace: pu-test-pa-test
+# ...
 ```
