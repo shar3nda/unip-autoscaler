@@ -11,7 +11,7 @@ class ConfigManager:
     def __init__(self):
         self._configs: List[ScalingConfig] | None = None
         self._configs_lock = Lock()
-        self._modified = None
+        self._modified: float | None = None
         self._modified_lock = Lock()
 
     async def load_configs(self) -> None:
