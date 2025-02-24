@@ -1,9 +1,9 @@
-import asyncio
 import base64
 import re
 from datetime import datetime
 from typing import List, Optional
 
+import aiofiles
 import aiohttp
 import yaml
 from jinja2 import Environment, Template, meta
@@ -399,20 +399,11 @@ async def fetch_prometheus_metric(query) -> Optional[float]:
                 return None
 
 
-async def read_file_async(file_path):
-    content = await asyncio.to_thread(read_file, file_path)
-    return content
-
-
-def read_file(file_path):
-    with open(file_path, "r") as file:
-        return file.read()
-
-
 async def load_autoscaler_configs() -> List[ScalingConfig]:
     result = []
 
-    spec = await read_file_async(AUTOSCALER_SPEC_FILE)
+    async with aiofiles.open(AUTOSCALER_SPEC_FILE) as f:
+        spec = await f.read()
     configs = list(yaml.safe_load_all(spec))
 
     for config in configs:
@@ -580,7 +571,9 @@ async def autoscale_target(config: ScalingConfig) -> None:
     """Масштабирует объект в соответствии с конфигурацией."""
 
     if not NAMESPACE_REGEX.match(config.target.namespace):
-        logger.info(f"{config.target.namespace=} does not match regex, skipping scaling")
+        logger.info(
+            f"{config.target.namespace=} does not match regex, skipping scaling"
+        )
         return
 
     if await has_cooldown(config.target, config.scalingOptions.cooldown):

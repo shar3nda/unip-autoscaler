@@ -1,6 +1,14 @@
 import os
 import re
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEV_DIR = os.path.join(ROOT_DIR, "dev")
+
+if os.path.exists(os.path.join(DEV_DIR)):
+    from dotenv import load_dotenv
+
+    load_dotenv(os.path.join(DEV_DIR, ".env"))
+
 AUTOSCALER_APP_SELECTOR_NAME = os.environ.get(
     "AUTOSCALER_APP_SELECTOR_NAME",
     "app",

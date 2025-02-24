@@ -1,18 +1,19 @@
 import asyncio
 import base64
 from contextlib import asynccontextmanager
+import math
 from typing import Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Header, Query
-from kubernetes_asyncio import watch
 from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 from typing_extensions import Annotated
 from ua_parser import user_agent_parser
 
+from .config_manager import ConfigManager
 from .functions import (
     autoscale_target,
     check_readiness_probe,
@@ -22,7 +23,6 @@ from .functions import (
     hibernate_by_deployment,
     hibernate_by_service,
     is_service_ready,
-    load_autoscaler_configs,
     scale_deployment,
     wakeup_ingress,
 )
@@ -33,47 +33,51 @@ from .settings import (
     AUTOSCALER_READINESS_LIMIT,
     AUTOSCALER_READINESS_TIMEOUT,
     NAMESPACE_REGEX,
+    AUTOSCALER_SPEC_FILE,
 )
 from .user_agents import USER_AGENTS_CONFIG
 
 scheduler = AsyncIOScheduler()
-CONFIGS = None
+config_mgr = ConfigManager()
 
 
 async def watch_configmap():
-    w = watch.Watch()
+    # TODO move to APSched timed job
+    if not AUTOSCALER_SPEC_FILE:
+        logger.error("AUTOSCALER_SPEC_FILE not set")
+        return
 
-    # FIXME: doesn't work for some reason
-    async for event in w.stream(
-        k8s.coreV1API.read_namespaced_config_map,
-        name="autoscaler-props",
-        namespace="unip-system-autoscaler",
-    ):
-        logger.info(f"Event: {event}")
-        if event["type"] in ("MODIFIED", "ADDED"):
-            logger.info("configMap changed, reloading autoscaler configurations")
-            await init_scheduler()
+    while True:
+        try:
+            prev = await config_mgr.get_modified()
+            await config_mgr.load_modified()
+            cur = await config_mgr.get_modified()
+            if prev is not None and not math.isclose(prev, cur):
+                logger.info("configMap changed, reloading autoscaler configurations")
+                await init_scheduler()
+        except Exception as e:
+            logger.error(f"Error watching ConfigMap file: {e}")
+        await asyncio.sleep(5)
 
 
 async def init_scheduler():
     logger.info("Initializing scheduler")
     logger.info("Loading autoscaler configurations")
-    configs = await load_autoscaler_configs()
+    await config_mgr.load_configs()
 
     scheduler.remove_all_jobs()
 
+    configs = await config_mgr.get_configs()
+
     for cfg in configs:
         logger.info(f"Adding job for {cfg.target}")
-        logger.debug(f"{AUTOSCALER_CHECK_INTERVAL=}")
         scheduler.add_job(
             autoscale_target,
             trigger="interval",
             seconds=AUTOSCALER_CHECK_INTERVAL,
             kwargs={"config": cfg},
         )
-    global CONFIGS
-    CONFIGS = configs
-    logger.info("Scheduler initialized")
+    logger.info(f"Scheduler initialized, {AUTOSCALER_CHECK_INTERVAL=}")
     return
 
 
@@ -85,12 +89,11 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Scheduler started")
 
-    # watch_task = asyncio.create_task(watch_configmap())
+    watch_task = asyncio.create_task(watch_configmap())
     try:
         yield
     finally:
-        # watch_task.cancel()
-        # await watch_task
+        watch_task.cancel()
         scheduler.shutdown()
         logger.info("Scheduler stopped")
 
@@ -121,7 +124,7 @@ async def alert(alert: AlertRequestModel):
         logger.info("Namespace does not match regex, skipping hibernation")
         return
 
-    for cfg in CONFIGS:
+    for cfg in await config_mgr.get_configs():
         svc = await get_service_from_config(cfg)
         svc_name = svc.metadata.name
         if not (cfg.target.namespace == namespace and svc_name == service):
