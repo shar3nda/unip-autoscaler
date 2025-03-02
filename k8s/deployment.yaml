@@ -18,7 +18,7 @@ spec:
       serviceAccountName: unip-autoscaler
       containers:
         - name: unip-autoscaler
-          image: registry-platform-dev-cs-hse.objectoriented.ru/ikrupnov/unip-autoscaler:v2
+          image: registry-platform-dev-cs-hse.objectoriented.ru/ikrupnov/unip-autoscaler:v0.0.2
           imagePullPolicy: Always
           envFrom:
           - configMapRef:
