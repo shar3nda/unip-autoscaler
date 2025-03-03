@@ -419,7 +419,7 @@ async def load_autoscaler_configs() -> List[ScalingConfig]:
 def get_cpu_query(deployment_name: str, time_window=300):
     return (
         "sum(rate(container_cpu_usage_seconds_total{"
-        f'pod=~"{deployment_name}-.*"'
+        f'pod=~"{deployment_name}-.*",container!=""'
         "}"
         f"[{time_window}s])) by (pod) * 100"
     )
@@ -428,7 +428,7 @@ def get_cpu_query(deployment_name: str, time_window=300):
 def get_memory_query(deployment_name: str, time_window=300):
     return (
         "avg by (pod) (avg_over_time(container_memory_working_set_bytes{"
-        f'pod=~"{deployment_name}-.*"'
+        f'pod=~"{deployment_name}-.*",container!=""'
         "}"
         f"[{time_window}s:])) / 1024 / 1024"
     )
