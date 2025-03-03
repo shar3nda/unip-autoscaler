@@ -384,12 +384,15 @@ async def fetch_prometheus_metric(query) -> Optional[float]:
             data = await response.json()
             if data["status"] == "success":
                 result = data["data"]["result"]
-                if len(result) != 2:
+                if len(result) != 1:
                     logger.error(
-                        f"expected [timestamp, value] in prometheus response, found {result}"
+                        f"expected single metric in prometheus response, found {result}"
                     )
                     return None
-                return float(result[1])
+                metric_value = result[0].get('value')
+                if not metric_value:
+                    logger.error(f"no metric value found in {result=}")
+                return float(metric_value[1])
             else:
                 logger.error(f"prometheus error: {data['error']}")
                 return None
@@ -536,7 +539,7 @@ async def get_new_state(config: ScalingConfig, current_state: State) -> State:
 
 async def get_new_replica_count(
     config: ScalingConfig, current_replica_count: int
-) -> int:
+) -> Optional[int]:
     """
     Возвращает новое количество реплик в соответствии с правилами масштабирования.
     """
@@ -548,17 +551,17 @@ async def get_new_replica_count(
         current_state = config.get_current_state(current_replica_count)
     except ValueError as e:
         logger.error(f"error getting current state: {e}")
-        return 0
+        return None
 
     try:
         new_state = await get_new_state(config, current_state)
     except ValueError as e:
         logger.error(f"error getting new state: {e}")
-        return 0
+        return None
 
     if new_state is None:
         logger.debug("no transition rules matched")
-        return 0
+        return None
 
     return new_state.replicas
 
@@ -588,6 +591,8 @@ async def autoscale_target(config: ScalingConfig) -> None:
 
     new_replica_count = await get_new_replica_count(config, current_replica_count)
     logger.debug(f"{new_replica_count=}")
+    if new_replica_count is None:
+        return
 
     logger.info(f"scaling {target} from {current_replica_count} to {new_replica_count}")
     await scale_deployment(deployment, new_replica_count)
