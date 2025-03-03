@@ -384,16 +384,12 @@ async def fetch_prometheus_metric(query) -> Optional[float]:
             data = await response.json()
             if data["status"] == "success":
                 result = data["data"]["result"]
-                total = 0
-                count = 0
-                for item in result:
-                    total += float(item["value"][1])
-                    count += 1
-
-                if count == 0:
+                if len(result) != 2:
+                    logger.error(
+                        f"expected [timestamp, value] in prometheus response, found {result}"
+                    )
                     return None
-
-                return total / count
+                return float(result[1])
             else:
                 logger.error(f"prometheus error: {data['error']}")
                 return None
