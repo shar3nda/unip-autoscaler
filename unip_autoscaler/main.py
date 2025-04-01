@@ -218,7 +218,7 @@ async def wakeup(
             logger.info(f"Service {autoscaler_app_service} is not ready {i}")
             await asyncio.sleep(AUTOSCALER_READINESS_TIMEOUT)
 
-    redirect_url = set_https_prefix(request.url)
+    redirect_url = set_https_prefix(str(request.url))
 
     logger.info(f"Redirecting to {redirect_url}")
     return RedirectResponse(url=redirect_url, status_code=307)
