@@ -14,9 +14,9 @@ from ua_parser import user_agent_parser
 from .config_manager import ConfigManager
 from .functions import (
     autoscale_target,
-    get_retry_redirect_url,
     check_readiness_probe,
     get_deployment,
+    get_retry_redirect_url,
     get_service,
     get_service_from_config,
     hibernate_by_deployment,
@@ -131,6 +131,7 @@ async def alert(alert: AlertRequestModel):
             continue
         if not cfg.scalingOptions.hibernationEnabled:
             logger.info("Hibernation disabled for service, skipping hibernation")
+            continue
         return await hibernate_by_service(namespace, svc_name)
     logger.info("No matching configuration found, skipping hibernation")
     return
