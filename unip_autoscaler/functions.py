@@ -608,6 +608,10 @@ async def autoscale_target(config: ScalingConfig) -> None:
     if new_replica_count is None:
         return
 
+    if new_replica_count == current_replica_count:
+        logger.info(f"{new_replica_count=} == {current_replica_count=}, skip scaling")
+        return
+
     logger.info(f"scaling {target} from {current_replica_count} to {new_replica_count}")
     await scale_deployment(deployment, new_replica_count)
     await set_scaling_timestamp(target, datetime.now())
