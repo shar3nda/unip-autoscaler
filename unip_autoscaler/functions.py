@@ -2,10 +2,12 @@ import base64
 import re
 from datetime import datetime
 from typing import List, Optional
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import aiofiles
 import aiohttp
 import yaml
+from fastapi import Request
 from jinja2 import Environment, Template, meta
 from kubernetes import client
 from kubernetes.client import ApiException, V1Deployment, V1Service
@@ -33,6 +35,18 @@ from .settings import (
     NAMESPACE_REGEX,
     PROMETHEUS_URL,
 )
+
+
+def set_https_prefix(url: str) -> str:
+    return url.replace("http://", "https://", 1)
+
+
+def get_retry_redirect_url(request: Request, retries: int) -> str:
+    url_parts = list(urlparse(str(request.url)))
+    query = dict(parse_qsl(url_parts[4]))
+    query.update({"retries": retries})
+    url_parts[4] = urlencode(query)
+    return urlunparse(url_parts)
 
 
 async def get_deployment(name: str, namespace: str):
@@ -389,7 +403,7 @@ async def fetch_prometheus_metric(query) -> Optional[float]:
                         f"expected single metric in prometheus response, found {result}"
                     )
                     return None
-                metric_value = result[0].get('value')
+                metric_value = result[0].get("value")
                 if not metric_value:
                     logger.error(f"no metric value found in {result=}")
                 return float(metric_value[1])

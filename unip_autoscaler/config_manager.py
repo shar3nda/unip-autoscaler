@@ -1,5 +1,5 @@
-from asyncio import Lock
 import os
+from asyncio import Lock
 from typing import List
 
 from .autoscaling_config import ScalingConfig

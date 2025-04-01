@@ -1,21 +1,20 @@
 import asyncio
 import base64
-from contextlib import asynccontextmanager
 import math
+from contextlib import asynccontextmanager
 from typing import Optional
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, Header, Query
+from fastapi import FastAPI, Header, Query, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from starlette.requests import Request
-from starlette.responses import RedirectResponse
 from typing_extensions import Annotated
 from ua_parser import user_agent_parser
 
 from .config_manager import ConfigManager
 from .functions import (
     autoscale_target,
+    get_retry_redirect_url,
     check_readiness_probe,
     get_deployment,
     get_service,
@@ -24,6 +23,7 @@ from .functions import (
     hibernate_by_service,
     is_service_ready,
     scale_deployment,
+    set_https_prefix,
     wakeup_ingress,
 )
 from .k8s_client import k8s
@@ -32,8 +32,8 @@ from .settings import (
     AUTOSCALER_CHECK_INTERVAL,
     AUTOSCALER_READINESS_LIMIT,
     AUTOSCALER_READINESS_TIMEOUT,
-    NAMESPACE_REGEX,
     AUTOSCALER_SPEC_FILE,
+    NAMESPACE_REGEX,
 )
 from .user_agents import USER_AGENTS_CONFIG
 
@@ -195,11 +195,7 @@ async def wakeup(
         if AUTOSCALER_READINESS_TIMEOUT * i * 1.2 >= max_timeout:
             logger.info(f"Timeout reached {max_timeout}")
 
-            url_parts = list(urlparse(str(request.url)))
-            query = dict(parse_qsl(url_parts[4]))
-            query.update({"retries": retries})
-            url_parts[4] = urlencode(query)
-            redirect_url = urlunparse(url_parts)
+            redirect_url = set_https_prefix(get_retry_redirect_url(request, retries))
 
             logger.info(f"Redirecting to {redirect_url}")
 
@@ -222,5 +218,7 @@ async def wakeup(
             logger.info(f"Service {autoscaler_app_service} is not ready {i}")
             await asyncio.sleep(AUTOSCALER_READINESS_TIMEOUT)
 
-    logger.info(f"Redirecting to {request.url}")
-    return RedirectResponse(url=request.url, status_code=307)
+    redirect_url = set_https_prefix(request.url)
+
+    logger.info(f"Redirecting to {redirect_url}")
+    return RedirectResponse(url=redirect_url, status_code=307)
