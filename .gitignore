@@ -1,7 +1,8 @@
 .venv
 .idea
 *-secret.yaml
-*/__pycache__/*
+__pycache__
 **/*local*.py
 *test.py
+!conftest.py
 .vscode
