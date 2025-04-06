@@ -13,20 +13,22 @@ class Target(BaseModel):
 
 class Condition(BaseModel):
     metric: str
-    operator: Literal["<", ">"]
+    operator: Literal["lt", "gt"]
     value: float
 
 
 class ConditionSet(BaseModel):
-    allOf: List[Condition] = Field(default_factory=list)
-    anyOf: List[Condition] = Field(default_factory=list)
+    allConditions: List[Condition] = Field(default_factory=list)
+    anyCondition: List[Condition] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_conditions(cls, v):
-        if not v.allOf and not v.anyOf:
-            raise ValueError("either allOf or anyOf must be set")
-        if v.allOf and v.anyOf:
-            raise ValueError("allOf and anyOf cannot be set at the same time")
+        if not v.allConditions and not v.anyCondition:
+            raise ValueError("either allConditions or anyCondition must be set")
+        if v.allConditions and v.anyCondition:
+            raise ValueError(
+                "allConditions and anyCondition cannot be set at the same time"
+            )
         return v
 
 

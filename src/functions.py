@@ -13,16 +13,14 @@ from kubernetes import client
 from kubernetes.client import ApiException, V1Deployment, V1Service
 from pydantic import ValidationError
 
-from .autoscaling_config import (
+from src.autoscaler.autoscaling_config import (
     Condition,
     ScalingConfig,
     State,
 )
-from .cooldown import has_cooldown, set_scaling_timestamp
-from .k8s_client import k8s
-from .lock import get_resource_lock
-from .logger import logger
-from .settings import (
+from src.autoscaler.cooldown import has_cooldown, set_scaling_timestamp
+from src.k8s.k8s_client import k8s
+from src.settings import (
     AUTOSCALER_APP_SELECTOR_NAME,
     AUTOSCALER_HEADERS_PREFIX,
     AUTOSCALER_HEADERS_SUFFIX,
@@ -35,6 +33,8 @@ from .settings import (
     NAMESPACE_REGEX,
     PROMETHEUS_URL,
 )
+from src.utils.logger import logger
+from src.utils.resource_lock import get_resource_lock
 
 
 def set_https_prefix(url: str) -> str:
@@ -526,10 +526,10 @@ async def check_condition(config: ScalingConfig, condition: Condition) -> bool:
     if value is None:
         return False
 
-    if condition.operator == "<":
+    if condition.operator == "lt":
         return value < condition.value
 
-    if condition.operator == ">":
+    if condition.operator == "gt":
         return value > condition.value
 
     raise ValueError(f"Unknown operator: {condition.operator}")
@@ -537,15 +537,15 @@ async def check_condition(config: ScalingConfig, condition: Condition) -> bool:
 
 async def get_new_state(config: ScalingConfig, current_state: State) -> State:
     for transition in current_state.transitions:
-        all_of = transition.conditions.allOf
-        any_of = transition.conditions.anyOf
-        if all_of:
-            for condition in all_of:
+        all_conditions = transition.conditions.allConditions
+        any_condition = transition.conditions.anyCondition
+        if all_conditions:
+            for condition in all_conditions:
                 if not await check_condition(config, condition):
                     return None
             return config.get_state_by_number(transition.nextState)
         else:
-            for condition in any_of:
+            for condition in any_condition:
                 if await check_condition(config, condition):
                     return config.get_state_by_number(transition.nextState)
     return None

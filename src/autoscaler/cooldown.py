@@ -2,7 +2,7 @@ from asyncio import Lock
 from datetime import datetime
 from typing import Dict, Tuple
 
-from .autoscaling_config import Target
+from src.autoscaler.autoscaling_config import Target
 
 __scaling_timestamps: Dict[Tuple[str, str, str], datetime] = {}
 __lock = Lock()

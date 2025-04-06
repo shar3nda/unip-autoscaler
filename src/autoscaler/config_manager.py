@@ -2,9 +2,9 @@ import os
 from asyncio import Lock
 from typing import List
 
-from .autoscaling_config import ScalingConfig
-from .functions import load_autoscaler_configs
-from .settings import AUTOSCALER_SPEC_FILE
+from src.autoscaler.autoscaling_config import ScalingConfig
+from src.functions import load_autoscaler_configs
+from src.settings import AUTOSCALER_SPEC_FILE
 
 
 class ConfigManager:

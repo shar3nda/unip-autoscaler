@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from unip_autoscaler.functions import (
+from src.functions import (
     autoscale_target,
     get_new_replica_count,
     get_retry_redirect_url,

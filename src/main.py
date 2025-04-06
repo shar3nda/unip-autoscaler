@@ -11,8 +11,8 @@ from pydantic import BaseModel
 from typing_extensions import Annotated
 from ua_parser import user_agent_parser
 
-from .config_manager import ConfigManager
-from .functions import (
+from src.autoscaler.config_manager import ConfigManager
+from src.functions import (
     autoscale_target,
     check_readiness_probe,
     get_deployment,
@@ -26,16 +26,16 @@ from .functions import (
     set_https_prefix,
     wakeup_ingress,
 )
-from .k8s_client import k8s
-from .logger import logger
-from .settings import (
+from src.k8s.k8s_client import k8s
+from src.settings import (
     AUTOSCALER_CHECK_INTERVAL,
     AUTOSCALER_READINESS_LIMIT,
     AUTOSCALER_READINESS_TIMEOUT,
     AUTOSCALER_SPEC_FILE,
     NAMESPACE_REGEX,
 )
-from .user_agents import USER_AGENTS_CONFIG
+from src.utils.user_agents import USER_AGENTS_CONFIG
+from src.utils.logger import logger
 
 scheduler = AsyncIOScheduler()
 config_mgr = ConfigManager()

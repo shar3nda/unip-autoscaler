@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from unip_autoscaler.main import AlertRequestModel, AnnotationsModel, alert
+from src.main import AlertRequestModel, AnnotationsModel, alert
 
 
 @pytest.mark.asyncio

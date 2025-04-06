@@ -7,60 +7,60 @@ states:
     transitions:
       - nextState: 2
         conditions:
-          allOf:
+          allConditions:
             - metric: mycpu
-              operator: ">"
+              operator: "gt"
               value: 20.0
             - metric: queries
-              operator: ">"
+              operator: "gt"
               value: 201
   - replicas: 2
     transitions:
       - nextState: 3
         conditions:
-          allOf:
+          allConditions:
             - metric: queries
-              operator: ">"
+              operator: "gt"
               value: 500
       - nextState: 1
         conditions:
-          anyOf:
+          anyCondition:
             - metric: mycpu
-              operator: "<"
+              operator: "lt"
               value: 10.0
             - metric: queries
-              operator: "<"
+              operator: "lt"
               value: 200
   - replicas: 3
     transitions:
       - nextState: 4
         conditions:
-          allOf:
+          allConditions:
             - metric: mycpu
-              operator: ">"
+              operator: "gt"
               value: 70.0
             - metric: mymemory
-              operator: ">"
+              operator: "gt"
               value: 500.0
       - nextState: 2
         conditions:
-          anyOf:
+          anyCondition:
             - metric: mycpu
-              operator: "<"
+              operator: "lt"
               value: 30.0
             - metric: mymemory
-              operator: "<"
+              operator: "lt"
               value: 200.0
   - replicas: 4
     # transitions:
     #   - nextState: 3
     #     conditions:
-    #       anyOf:
+    #       anyCondition:
     #         - metric: mycpu
-    #           operator: "<"
+    #           operator: "lt"
     #           value: 60.0
     #         - metric: mymemory
-    #           operator: "<"
+    #           operator: "lt"
     #           value: 400.0
 prometheusMetrics:
   - name: mycpu

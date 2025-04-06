@@ -3,6 +3,7 @@ APScheduler
 fastapi[standard]
 Jinja2
 jsonref
+kubernetes
 kubernetes_asyncio
 pydantic
 pytest

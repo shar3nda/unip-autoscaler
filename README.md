@@ -81,33 +81,33 @@ states:
     transitions:
       - nextState: 2
         conditions:
-          # Условия перехода между состояниями, где allOf - логическое И,
-          # anyOf - логическое ИЛИ (можно использовать только одно).
-          allOf:
-            # Условие состояит из имени метрики, оператора (">" или "<") и порогового
+          # Условия перехода между состояниями, где allConditions - логическое И,
+          # anyCondition - логическое ИЛИ (можно использовать только одно).
+          allConditions:
+            # Условие состояит из имени метрики, оператора ("gt" или "lt") и порогового
             # значения (вещественное число).
             - metric: mycpu
-              operator: ">"
+              operator: "gt"
               value: 20.0
             - metric: queries
-              operator: ">"
+              operator: "gt"
               value: 200
   - replicas: 2
     transitions:
       - nextState: 3
         conditions:
-          allOf:
+          allConditions:
             - metric: queries
-              operator: ">"
+              operator: "gt"
               value: 500
       - nextState: 1
         conditions:
-          anyOf:
+          anyCondition:
             - metric: mycpu
-              operator: "<"
+              operator: "lt"
               value: 10.0
             - metric: queries
-              operator: "<"
+              operator: "lt"
               value: 200
   - replicas: 3
     # У состояния может не быть переходов; тогда выход будет возможен только
