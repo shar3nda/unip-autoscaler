@@ -1,0 +1,13 @@
+aiofiles
+APScheduler
+fastapi[standard]
+Jinja2
+jsonref
+kubernetes_asyncio
+pydantic
+pytest
+python-dotenv
+PyYAML
+requests
+ruff
+ua-parser
