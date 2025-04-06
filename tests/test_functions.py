@@ -39,16 +39,16 @@ def test_build_retry_redirect_url(original_url, retries, expected_query):
 @pytest.mark.asyncio
 async def test_get_new_replica_count(get_simple_scaling_config):
     config = get_simple_scaling_config()
-    with patch("unip_autoscaler.functions.fetch_prometheus_metric", return_value=80):
+    with patch("src.functions.fetch_prometheus_metric", return_value=80):
         result = await get_new_replica_count(config, 1)
         assert result == 2
-    with patch("unip_autoscaler.functions.fetch_prometheus_metric", return_value=70):
+    with patch("src.functions.fetch_prometheus_metric", return_value=70):
         result = await get_new_replica_count(config, 1)
         assert result is None
-    with patch("unip_autoscaler.functions.fetch_prometheus_metric", return_value=30):
+    with patch("src.functions.fetch_prometheus_metric", return_value=30):
         result = await get_new_replica_count(config, 2)
         assert result == 1
-    with patch("unip_autoscaler.functions.fetch_prometheus_metric", return_value=90):
+    with patch("src.functions.fetch_prometheus_metric", return_value=90):
         result = await get_new_replica_count(config, 2)
         assert result is None
 
@@ -58,12 +58,12 @@ async def test_autoscale_target(get_simple_scaling_config):
     config = get_simple_scaling_config()
     with (
         patch(
-            "unip_autoscaler.functions.get_deployment_from_config"
+            "src.functions.get_deployment_from_config"
         ) as get_deployment_from_config,
-        patch("unip_autoscaler.functions.fetch_prometheus_metric", return_value=80),
-        patch("unip_autoscaler.functions.has_cooldown", return_value=False),
-        patch("unip_autoscaler.functions.scale_deployment") as scale,
-        patch("unip_autoscaler.functions.set_scaling_timestamp"),
+        patch("src.functions.fetch_prometheus_metric", return_value=80),
+        patch("src.functions.has_cooldown", return_value=False),
+        patch("src.functions.scale_deployment") as scale,
+        patch("src.functions.set_scaling_timestamp"),
     ):
         get_deployment_from_config.return_value.spec.replicas = 1
         get_deployment_from_config.return_value.metadata.name = "test-deploy"
