@@ -7,7 +7,7 @@ from typing import Any
 import jsonref
 import yaml
 
-from src.autoscaler.autoscaling_config import ScalingConfig
+from src.config.model import ScalingConfig
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 

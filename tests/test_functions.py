@@ -2,9 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.functions import (
-    autoscale_target,
-    get_new_replica_count,
+from src.autoscaler.core import autoscale_target, get_new_replica_count
+from src.network.url import (
     get_retry_redirect_url,
 )
 
@@ -39,16 +38,16 @@ def test_build_retry_redirect_url(original_url, retries, expected_query):
 @pytest.mark.asyncio
 async def test_get_new_replica_count(get_simple_scaling_config):
     config = get_simple_scaling_config()
-    with patch("src.functions.fetch_prometheus_metric", return_value=80):
+    with patch("src.autoscaler.core.fetch_prometheus_metric", return_value=80):
         result = await get_new_replica_count(config, 1)
         assert result == 2
-    with patch("src.functions.fetch_prometheus_metric", return_value=70):
+    with patch("src.autoscaler.core.fetch_prometheus_metric", return_value=70):
         result = await get_new_replica_count(config, 1)
         assert result is None
-    with patch("src.functions.fetch_prometheus_metric", return_value=30):
+    with patch("src.autoscaler.core.fetch_prometheus_metric", return_value=30):
         result = await get_new_replica_count(config, 2)
         assert result == 1
-    with patch("src.functions.fetch_prometheus_metric", return_value=90):
+    with patch("src.autoscaler.core.fetch_prometheus_metric", return_value=90):
         result = await get_new_replica_count(config, 2)
         assert result is None
 
@@ -58,12 +57,12 @@ async def test_autoscale_target(get_simple_scaling_config):
     config = get_simple_scaling_config()
     with (
         patch(
-            "src.functions.get_deployment_from_config"
+            "src.autoscaler.core.get_deployment_from_config"
         ) as get_deployment_from_config,
-        patch("src.functions.fetch_prometheus_metric", return_value=80),
-        patch("src.functions.has_cooldown", return_value=False),
-        patch("src.functions.scale_deployment") as scale,
-        patch("src.functions.set_scaling_timestamp"),
+        patch("src.autoscaler.core.fetch_prometheus_metric", return_value=80),
+        patch("src.autoscaler.core.has_cooldown", return_value=False),
+        patch("src.autoscaler.core.scale_deployment") as scale,
+        patch("src.autoscaler.core.set_scaling_timestamp"),
     ):
         get_deployment_from_config.return_value.spec.replicas = 1
         get_deployment_from_config.return_value.metadata.name = "test-deploy"

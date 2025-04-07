@@ -1,6 +1,6 @@
 import pytest
 
-from src.autoscaler.autoscaling_config import (
+from src.config.model import (
     Condition,
     ConditionSet,
     ScalingConfig,

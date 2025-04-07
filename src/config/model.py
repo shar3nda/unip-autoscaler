@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from enum import Enum
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -11,9 +12,14 @@ class Target(BaseModel):
     namespace: str
 
 
+class Operator(str, Enum):
+    LT = "lt"
+    GT = "gt"
+
+
 class Condition(BaseModel):
     metric: str
-    operator: Literal["lt", "gt"]
+    operator: Operator
     value: float
 
 
