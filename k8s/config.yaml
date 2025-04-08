@@ -1,85 +1,32 @@
-apiVersion: unified-platform.cs.hse.ru/v1alpha1
+apiVersion: autoscaler.unified-platform.cs.hse.ru/v1alpha1
 kind: ScalingConfig
 metadata:
   name: my-app-autoscaler
-  namespace: default
+  namespace: unip-system-autoscaler
 spec:
   target:
     kind: deployment
-    name: tesseract-app-deployment
-    namespace: pu-test-tesseract
+    name: module-resourse-test-mlcmp-1-deployment
+    namespace: pu-test-pa-resourse-test
   states:
     - replicas: 1
       transitions:
         - nextState: 2
           conditions:
-            allOf:
-              - metric: mycpu
+            allConditions:
+              - metric: memory
                 operator: "gt"
-                value: 20.0
-              - metric: queries
-                operator: "gt"
-                value: 200
+                value: 100.0
     - replicas: 2
       transitions:
-        - nextState: 3
-          conditions:
-            allOf:
-              - metric: queries
-                operator: "gt"
-                value: 500
         - nextState: 1
           conditions:
-            anyCondition:
-              - metric: mycpu
+            allConditions:
+              - metric: memory
                 operator: "lt"
-                value: 10.0
-              - metric: queries
-                operator: "lt"
-                value: 200
-    - replicas: 3
-      transitions:
-        - nextState: 4
-          conditions:
-            allOf:
-              - metric: mycpu
-                operator: "gt"
-                value: 70.0
-              - metric: mymemory
-                operator: "gt"
                 value: 500.0
-        - nextState: 2
-          conditions:
-            anyCondition:
-              - metric: mycpu
-                operator: "lt"
-                value: 30.0
-              - metric: mymemory
-                operator: "lt"
-                value: 200.0
-    - replicas: 4
-      # transitions:
-      #   - nextState: 3
-      #     conditions:
-      #       anyCondition:
-      #         - metric: mycpu
-      #           operator: "lt"
-      #           value: 60.0
-      #         - metric: mymemory
-      #           operator: "lt"
-      #           value: 400.0
-  prometheusMetrics:
-    - name: mycpu
-      query: >-
-        sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"{{ DEPLOYMENT_NAME }}-.*"}[5m])) * 100
-    - name: mymemory
-      query: >-
-        sum(container_memory_usage_bytes{pod=~"{{ DEPLOYMENT_NAME }}-.*"}) / 1024 / 1024
-    - name: queries
-      query: >-
-        sum(rate(nginx_ingress_controller_requests{ingress="service-api-ingress", namespace="{{ NAMESPACE }}"}[10m]))
   scalingOptions:
-    # cpuTimeWindow: 300
-    # memoryTimeWindow: 300
-    cooldown: 300
-    hibernationEnabled: false
+    cpuTimeWindow: 60
+    memoryTimeWindow: 60
+    cooldown: 120
+    hibernationEnabled: true

@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import math
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -12,6 +11,7 @@ from typing_extensions import Annotated
 from ua_parser import user_agent_parser
 
 from src.autoscaler.core import autoscale_target
+from src.config.loader import watch_config
 from src.config.manager import ConfigManager
 from src.k8s.actions import (
     hibernate_by_deployment,
@@ -31,32 +31,12 @@ from src.settings import (
     AUTOSCALER_CHECK_INTERVAL,
     AUTOSCALER_READINESS_LIMIT,
     AUTOSCALER_READINESS_TIMEOUT,
-    AUTOSCALER_SPEC_FILE,
     NAMESPACE_REGEX,
 )
 from src.utils.logger import logger
 
 scheduler = AsyncIOScheduler()
 config_mgr = ConfigManager()
-
-
-async def watch_config():
-    # TODO move to APSched timed job
-    if not AUTOSCALER_SPEC_FILE:
-        logger.error("AUTOSCALER_SPEC_FILE not set")
-        return
-
-    while True:
-        try:
-            prev = await config_mgr.get_modified()
-            await config_mgr.load_modified()
-            cur = await config_mgr.get_modified()
-            if prev is not None and not math.isclose(prev, cur):
-                logger.info("configMap changed, reloading autoscaler configurations")
-                await init_scheduler()
-        except Exception as e:
-            logger.error(f"Error watching ConfigMap file: {e}")
-        await asyncio.sleep(5)
 
 
 async def init_scheduler():
@@ -88,7 +68,7 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Scheduler started")
 
-    watch_task = asyncio.create_task(watch_config())
+    watch_task = asyncio.create_task(watch_config(init_scheduler))
     try:
         yield
     finally:

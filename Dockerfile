@@ -8,7 +8,7 @@ RUN python3.12 -m pip install --upgrade pip wheel setuptools
 COPY requirements.txt ./requirements.txt
 RUN python3.12 -m pip install -r ./requirements.txt
 
-COPY --chown=app unip_autoscaler /home/app/unip_autoscaler
+COPY --chown=app src /home/app/src
 USER app
 
-CMD ["uvicorn", "unip_autoscaler.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]

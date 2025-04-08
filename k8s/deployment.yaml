@@ -23,9 +23,6 @@ spec:
           envFrom:
           - configMapRef:
               name: autoscaler-config
-          volumeMounts:
-            - name: autoscaler-props
-              mountPath: /etc/unip-autoscaler
       imagePullSecrets:
         - name: registry-credentials
       volumes:
