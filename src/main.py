@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import math
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -11,53 +10,33 @@ from pydantic import BaseModel
 from typing_extensions import Annotated
 from ua_parser import user_agent_parser
 
-from .config_manager import ConfigManager
-from .functions import (
-    autoscale_target,
-    check_readiness_probe,
-    get_deployment,
-    get_retry_redirect_url,
-    get_service,
-    get_service_from_config,
+from src.autoscaler.core import autoscale_target
+from src.config.loader import watch_config
+from src.config.manager import ConfigManager
+from src.k8s.actions import (
     hibernate_by_deployment,
     hibernate_by_service,
-    is_service_ready,
     scale_deployment,
-    set_https_prefix,
     wakeup_ingress,
 )
-from .k8s_client import k8s
-from .logger import logger
-from .settings import (
+from src.k8s.healthcheck import check_readiness_probe, is_service_ready
+from src.k8s.k8s_client import k8s
+from src.k8s.resolver import get_deployment, get_service, get_service_from_config
+from src.network.url import (
+    get_retry_redirect_url,
+    set_https_prefix,
+)
+from src.network.user_agents import USER_AGENTS_CONFIG
+from src.settings import (
     AUTOSCALER_CHECK_INTERVAL,
     AUTOSCALER_READINESS_LIMIT,
     AUTOSCALER_READINESS_TIMEOUT,
-    AUTOSCALER_SPEC_FILE,
     NAMESPACE_REGEX,
 )
-from .user_agents import USER_AGENTS_CONFIG
+from src.utils.logger import logger
 
 scheduler = AsyncIOScheduler()
 config_mgr = ConfigManager()
-
-
-async def watch_configmap():
-    # TODO move to APSched timed job
-    if not AUTOSCALER_SPEC_FILE:
-        logger.error("AUTOSCALER_SPEC_FILE not set")
-        return
-
-    while True:
-        try:
-            prev = await config_mgr.get_modified()
-            await config_mgr.load_modified()
-            cur = await config_mgr.get_modified()
-            if prev is not None and not math.isclose(prev, cur):
-                logger.info("configMap changed, reloading autoscaler configurations")
-                await init_scheduler()
-        except Exception as e:
-            logger.error(f"Error watching ConfigMap file: {e}")
-        await asyncio.sleep(5)
 
 
 async def init_scheduler():
@@ -89,7 +68,7 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Scheduler started")
 
-    watch_task = asyncio.create_task(watch_configmap())
+    watch_task = asyncio.create_task(watch_config(init_scheduler))
     try:
         yield
     finally:

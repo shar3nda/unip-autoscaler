@@ -1,6 +1,6 @@
 import pytest
 
-from unip_autoscaler.autoscaling_config import (
+from src.config.model import (
     Condition,
     ConditionSet,
     ScalingConfig,
@@ -31,7 +31,9 @@ def get_simple_scaling_config():
                         Transition(
                             nextState=2,
                             conditions=ConditionSet(
-                                allOf=[Condition(metric="cpu", operator=">", value=75)]
+                                allConditions=[
+                                    Condition(metric="cpu", operator="gt", value=75)
+                                ]
                             ),
                         )
                     ],
@@ -42,7 +44,9 @@ def get_simple_scaling_config():
                         Transition(
                             nextState=1,
                             conditions=ConditionSet(
-                                allOf=[Condition(metric="cpu", operator="<", value=50)]
+                                allConditions=[
+                                    Condition(metric="cpu", operator="lt", value=50)
+                                ]
                             ),
                         )
                     ],

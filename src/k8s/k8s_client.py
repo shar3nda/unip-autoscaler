@@ -3,7 +3,8 @@ from kubernetes_asyncio import client, config
 
 class KubernetesClient:
     def __init__(self):
-        self.coreV1API = None
+        self.coreV1Api = None
+        self.customObjectsApi = None
         self.appsV1Api = None
         self.networkingV1Api = None
 
@@ -13,7 +14,8 @@ class KubernetesClient:
         except config.ConfigException:
             await config.load_kube_config()
 
-        self.coreV1API = client.CoreV1Api()
+        self.coreV1Api = client.CoreV1Api()
+        self.customObjectsApi = client.CustomObjectsApi()
         self.appsV1Api = client.AppsV1Api()
         self.networkingV1Api = client.NetworkingV1Api()
 

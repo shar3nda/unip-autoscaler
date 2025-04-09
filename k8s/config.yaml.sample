@@ -1,0 +1,32 @@
+apiVersion: autoscaler.unified-platform.cs.hse.ru/v1alpha1
+kind: ScalingConfig
+metadata:
+  name: my-app-autoscaler
+  namespace: unip-system-autoscaler
+spec:
+  target:
+    kind: deployment
+    name: module-resourse-test-mlcmp-1-deployment
+    namespace: pu-test-pa-resourse-test
+  states:
+    - replicas: 1
+      transitions:
+        - nextState: 2
+          conditions:
+            allConditions:
+              - metric: memory
+                operator: "gt"
+                value: 100.0
+    - replicas: 2
+      transitions:
+        - nextState: 1
+          conditions:
+            allConditions:
+              - metric: memory
+                operator: "lt"
+                value: 500.0
+  scalingOptions:
+    cpuTimeWindow: 60
+    memoryTimeWindow: 60
+    cooldown: 120
+    hibernationEnabled: true

@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from unip_autoscaler.main import AlertRequestModel, AnnotationsModel, alert
+from src.main import AlertRequestModel, AnnotationsModel, alert
 
 
 @pytest.mark.asyncio
@@ -22,23 +22,23 @@ async def test_alert_triggers_hibernation(get_simple_scaling_config):
 
     with (
         patch(
-            "unip_autoscaler.main.get_service_from_config",
+            "src.main.get_service_from_config",
             return_value=mock_service,
         ),
         patch(
-            "unip_autoscaler.main.hibernate_by_service",
+            "src.main.hibernate_by_service",
             new_callable=AsyncMock,
         ) as mock_hibernate,
     ):
         with patch(
-            "unip_autoscaler.main.config_mgr.get_configs",
+            "src.main.config_mgr.get_configs",
             return_value=[config_default],
         ):
             await alert(alert_payload)
             mock_hibernate.assert_not_called()
             mock_hibernate.reset_mock()
         with patch(
-            "unip_autoscaler.main.config_mgr.get_configs",
+            "src.main.config_mgr.get_configs",
             return_value=[config_hibernation],
         ):
             await alert(alert_payload)

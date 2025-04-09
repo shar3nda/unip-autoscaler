@@ -1,10 +1,8 @@
-import os
 from asyncio import Lock
 from typing import List
 
-from .autoscaling_config import ScalingConfig
-from .functions import load_autoscaler_configs
-from .settings import AUTOSCALER_SPEC_FILE
+from src.config.loader import load_autoscaler_configs
+from src.config.model import ScalingConfig
 
 
 class ConfigManager:
@@ -21,11 +19,3 @@ class ConfigManager:
     async def get_configs(self) -> List[ScalingConfig]:
         async with self._configs_lock:
             return self._configs
-
-    async def get_modified(self) -> float:
-        async with self._modified_lock:
-            return self._modified
-
-    async def load_modified(self) -> None:
-        async with self._modified_lock:
-            self._modified = os.stat(AUTOSCALER_SPEC_FILE).st_mtime
