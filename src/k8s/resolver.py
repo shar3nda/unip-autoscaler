@@ -12,7 +12,7 @@ from src.utils.resource_lock import (
 
 
 async def get_service(name: str, namespace: str):
-    return await k8s.coreV1API.read_namespaced_service(name=name, namespace=namespace)
+    return await k8s.coreV1Api.read_namespaced_service(name=name, namespace=namespace)
 
 
 async def get_deployment_by_service(service: V1Service):
@@ -59,7 +59,7 @@ async def get_deployment_from_config(config: ScalingConfig) -> V1Deployment:
 
 async def get_service_by_deployment(dep: V1Deployment):
     dep_labels = dep.spec.selector.match_labels
-    srvcs = await k8s.coreV1API.list_namespaced_service(dep.metadata.namespace)
+    srvcs = await k8s.coreV1Api.list_namespaced_service(dep.metadata.namespace)
     srvcs = list(
         filter(
             lambda srvc: srvc.spec.type == "ClusterIP"
@@ -92,7 +92,7 @@ async def get_hibernated_service(srvc: V1Service):
     )
     hibernatedService = None
     async with lock:
-        hibernatedService = await k8s.coreV1API.read_namespaced_service(
+        hibernatedService = await k8s.coreV1Api.read_namespaced_service(
             name=srvc.metadata.name + AUTOSCALER_HIBERNATED_SERVICE_SUFFIX,
             namespace=srvc.metadata.namespace,
         )

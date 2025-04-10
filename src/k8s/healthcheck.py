@@ -65,7 +65,7 @@ async def is_any_pod_ready(srvc: V1Service):
         label_selector = ",".join(
             [f"{key}={value}" for key, value in selectors.items()]
         )
-        pods = await k8s.coreV1API.list_namespaced_pod(
+        pods = await k8s.coreV1Api.list_namespaced_pod(
             namespace=srvc.metadata.namespace, label_selector=label_selector
         )
         for pod in pods.items:
@@ -82,7 +82,7 @@ async def is_any_pod_ready(srvc: V1Service):
 
 async def is_service_ready(namespace: str, name: str):
     try:
-        service = await k8s.coreV1API.read_namespaced_service(
+        service = await k8s.coreV1Api.read_namespaced_service(
             namespace=namespace, name=name
         )
         return await is_any_pod_ready(service)

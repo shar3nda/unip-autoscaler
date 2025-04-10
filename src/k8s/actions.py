@@ -112,7 +112,7 @@ async def create_hibernated_service(srvc: V1Service):
             type="ExternalName", external_name=AUTOSCALER_SERVICE_EXTERNAL_NAME
         )
         hibernatedService = V1Service(metadata=metadata, spec=spec)
-        hibernatedService = await k8s.coreV1API.create_namespaced_service(
+        hibernatedService = await k8s.coreV1Api.create_namespaced_service(
             namespace=srvc.metadata.namespace, body=hibernatedService
         )
     return hibernatedService
