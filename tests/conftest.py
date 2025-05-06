@@ -7,6 +7,7 @@ from src.config.model import (
     ScalingOptions,
     State,
     Target,
+    TargetKind,
     Transition,
 )
 
@@ -16,7 +17,9 @@ def get_simple_scaling_config():
     def _make_config(hibernation_enabled=False):
         return ScalingConfig(
             target=Target(
-                kind="deployment", name="test-deploy", namespace="pu-test-pa-test"
+                kind=TargetKind.DEPLOYMENT,
+                name="test-deploy",
+                namespace="pu-test-pa-test",
             ),
             scalingOptions=ScalingOptions(
                 cooldown=0,

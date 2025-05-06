@@ -6,15 +6,20 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
+class TargetKind(str, Enum):
+    DEPLOYMENT = "deployment"
+    SERVICE = "service"
+
+
 class Target(BaseModel):
-    kind: str
+    kind: TargetKind
     name: str
     namespace: str
 
 
 class Operator(str, Enum):
-    LT = "lt"
-    GT = "gt"
+    LESS_THAN = "lt"
+    GREATER_THAN = "gt"
 
 
 class Condition(BaseModel):

@@ -14,14 +14,12 @@ from src.autoscaler.core import autoscale_target
 from src.config.loader import watch_config
 from src.config.manager import ConfigManager
 from src.k8s.actions import (
-    hibernate_by_deployment,
-    hibernate_by_service,
     scale_deployment,
     wakeup_ingress,
 )
 from src.k8s.healthcheck import check_readiness_probe, is_service_ready
 from src.k8s.k8s_client import k8s
-from src.k8s.resolver import get_deployment, get_service, get_service_from_config
+from src.k8s.resolver import get_deployment, get_service
 from src.network.url import (
     get_retry_redirect_url,
     set_https_prefix,
@@ -31,7 +29,6 @@ from src.settings import (
     AUTOSCALER_CHECK_INTERVAL,
     AUTOSCALER_READINESS_LIMIT,
     AUTOSCALER_READINESS_TIMEOUT,
-    NAMESPACE_REGEX,
 )
 from src.utils.logger import logger
 
@@ -88,41 +85,6 @@ class Deployment(BaseModel):
 class AnnotationsModel(BaseModel):
     namespace: str
     service: str
-
-
-class AlertRequestModel(BaseModel):
-    commonAnnotations: AnnotationsModel
-
-
-@app.post("/alert")
-async def alert(alert: AlertRequestModel):
-    namespace = alert.commonAnnotations.namespace
-    service = alert.commonAnnotations.service
-    logger.info(f"ALERT: {namespace}, {service}")
-    if not NAMESPACE_REGEX.match(namespace):
-        logger.info("Namespace does not match regex, skipping hibernation")
-        return
-
-    for cfg in await config_mgr.get_configs():
-        svc = await get_service_from_config(cfg)
-        svc_name = svc.metadata.name
-        if not (cfg.target.namespace == namespace and svc_name == service):
-            continue
-        if not cfg.scalingOptions.hibernationEnabled:
-            logger.info("Hibernation disabled for service, skipping hibernation")
-            continue
-        return await hibernate_by_service(namespace, svc_name)
-    logger.info("No matching configuration found, skipping hibernation")
-    return
-
-
-@app.post("/hibernate")
-async def hibernate(deployment: Deployment):
-    if not NAMESPACE_REGEX.match(deployment.namespace):
-        logger.info("Namespace does not match regex, skipping hibernation")
-        return
-    logger.info(f"Hibernating deployment {deployment.name}")
-    return await hibernate_by_deployment(deployment.name, deployment.namespace)
 
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])

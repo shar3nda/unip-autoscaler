@@ -21,7 +21,7 @@ spec:
     kind: ScalingConfig
     plural: scalingconfigs
     shortNames:
-    - scfg
+    - scalecfg
     singular: scalingconfig
   scope: Namespaced
   versions:

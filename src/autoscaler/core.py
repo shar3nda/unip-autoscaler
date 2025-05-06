@@ -1,4 +1,5 @@
 from datetime import datetime
+from math import isclose
 from typing import Optional
 
 from src.autoscaler.cooldown import has_cooldown, set_scaling_timestamp
@@ -9,9 +10,12 @@ from src.autoscaler.metrics import (
     render_query_template,
 )
 from src.config.model import Condition, Operator, ScalingConfig, State
-from src.k8s.actions import scale_deployment
+from src.k8s.actions import (
+    hibernate_by_deployment,
+    scale_deployment,
+)
 from src.k8s.resolver import get_deployment_from_config
-from src.settings import NAMESPACE_REGEX
+from src.settings import HIBERNATION_QUERY, NAMESPACE_REGEX
 from src.utils.logger import logger
 
 
@@ -32,10 +36,10 @@ async def check_condition(config: ScalingConfig, condition: Condition) -> bool:
     if value is None:
         return False
 
-    if condition.operator == Operator.LT:
+    if condition.operator == Operator.LESS_THAN:
         return value < condition.value
 
-    if condition.operator == Operator.GT:
+    if condition.operator == Operator.GREATER_THAN:
         return value > condition.value
 
     raise ValueError(f"Unknown operator: {condition.operator}")
@@ -86,6 +90,26 @@ async def get_new_replica_count(
     return new_state.replicas
 
 
+async def is_hibernation_needed(config: ScalingConfig) -> bool:
+    if not config.scalingOptions.hibernationEnabled:
+        logger.debug(f"hibernation is disabled for {config.target=}")
+        return False
+
+    if not NAMESPACE_REGEX.match(config.target.namespace):
+        logger.info(
+            f"{config.target.namespace=} does not match regex, skipping scaling"
+        )
+        return False
+
+    query = await render_query_template(config, HIBERNATION_QUERY)
+    metric_value = await fetch_prometheus_metric(query)
+
+    if not isclose(metric_value, 0):
+        return False
+
+    return True
+
+
 async def autoscale_target(config: ScalingConfig) -> None:
     """Масштабирует объект в соответствии с конфигурацией."""
 
@@ -104,6 +128,15 @@ async def autoscale_target(config: ScalingConfig) -> None:
     deployment = await get_deployment_from_config(config)
     if deployment is None:
         logger.error(f"deployment to autoscale not found for {target}")
+        return
+
+    if await is_hibernation_needed(config):
+        logger.info(f"hibernating target {config.target}")
+        await hibernate_by_deployment(
+            config.target.name,
+            config.target.namespace,
+        )
+        await set_scaling_timestamp(target, datetime.now())
         return
 
     current_replica_count = deployment.spec.replicas

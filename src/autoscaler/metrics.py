@@ -5,7 +5,7 @@ from jinja2 import Environment, Template, meta
 
 from src.config.model import ScalingConfig
 from src.k8s.resolver import get_deployment_from_config, get_service_from_config
-from src.settings import PROMETHEUS_URL
+from src.settings import HIBERNATION_TIMEOUT_SECONDS, PROMETHEUS_URL
 from src.utils.logger import logger
 
 
@@ -18,6 +18,7 @@ async def render_query_template(config: ScalingConfig, query: str) -> str:
         "DEPLOYMENT_NAME": None,
         "SERVICE_NAME": None,
         "NAMESPACE": None,
+        "HIBERNATION_TIMEOUT_SECONDS": None,
         # TODO: implement this
         # "SERVICE_API_INGRESS_NAME": None,
         # "FILES_API_INGRESS_NAME": None,
@@ -39,6 +40,8 @@ async def render_query_template(config: ScalingConfig, query: str) -> str:
             ).metadata.name
         elif v == "NAMESPACE":
             values["NAMESPACE"] = config.target.namespace
+        elif v == "HIBERNATION_TIMEOUT_SECONDS":
+            values["HIBERNATION_TIMEOUT_SECONDS"] = HIBERNATION_TIMEOUT_SECONDS
         else:
             raise ValueError(f"unknown variable: {v}")
 
@@ -66,7 +69,7 @@ def get_cpu_query(deployment_name: str, time_window=300):
     )
 
 
-async def fetch_prometheus_metric(query) -> Optional[float]:
+async def fetch_prometheus_metric(query: str) -> Optional[float]:
     """
     Функция для запроса метрики из Prometheus.
     Ожидается, что метрика возвращает одно вещественное число.

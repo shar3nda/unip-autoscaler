@@ -8,7 +8,7 @@ spec:
     kind: ScalingConfig
     plural: scalingconfigs
     shortNames:
-    - scfg
+    - scalecfg
     singular: scalingconfig
   scope: Namespaced
   versions:
@@ -133,7 +133,10 @@ spec:
               target:
                 properties:
                   kind:
-                    title: Kind
+                    enum:
+                    - deployment
+                    - service
+                    title: TargetKind
                     type: string
                   name:
                     title: Name

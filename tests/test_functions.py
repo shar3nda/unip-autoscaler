@@ -71,3 +71,42 @@ async def test_autoscale_target(get_simple_scaling_config):
         await autoscale_target(config)
 
         scale.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_autoscale_hibernation(get_simple_scaling_config):
+    config_default = get_simple_scaling_config()
+    config_hibernation = get_simple_scaling_config(hibernation_enabled=True)
+    with (
+        patch(
+            "src.autoscaler.core.get_deployment_from_config"
+        ) as get_deployment_from_config,
+        patch(
+            "src.autoscaler.metrics.get_service_from_config"
+        ) as get_service_from_config,
+        patch("src.autoscaler.core.has_cooldown", return_value=False),
+        patch("src.autoscaler.core.scale_deployment"),
+        patch("src.autoscaler.core.set_scaling_timestamp"),
+        patch("src.autoscaler.core.hibernate_by_deployment") as hibernate,
+    ):
+        get_deployment_from_config.return_value.spec.replicas = 1
+        get_deployment_from_config.return_value.metadata.name = "test-deploy"
+        get_deployment_from_config.return_value.metadata.namespace = "pu-test-pa-test"
+
+        get_service_from_config.return_value.metadata.name = "test-deploy"
+        get_service_from_config.return_value.metadata.namespace = "pu-test-pa-test"
+
+        # hibernation disabled -> should not hibernate
+        with patch("src.autoscaler.core.fetch_prometheus_metric", return_value=0):
+            await autoscale_target(config_default)
+            hibernate.assert_not_called()
+
+        # hibernation enabled, metric != 0 -> should not hibernate
+        with patch("src.autoscaler.core.fetch_prometheus_metric", return_value=80):
+            await autoscale_target(config_hibernation)
+            hibernate.assert_not_called()
+
+        # hibernation enabled, metric == 0 -> should hibernate
+        with patch("src.autoscaler.core.fetch_prometheus_metric", return_value=0):
+            await autoscale_target(config_hibernation)
+            hibernate.assert_awaited_once_with("test-deploy", "pu-test-pa-test")

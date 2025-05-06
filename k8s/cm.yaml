@@ -7,7 +7,9 @@ data:
   AUTOSCALER_READINESS_PROBE_TIMEOUT: "15"
   AUTOSCALER_READINESS_LIMIT: "30"
   AUTOSCALER_READINESS_TIMEOUT: "1"
-  AUTOSCALER_CHECK_INTERVAL: "2"
+  AUTOSCALER_CHECK_INTERVAL: "10"
   PROMETHEUS_URL: "http://prometheus-operated.unip-system-prometheus.svc.cluster.local:9090/api/v1/query"
+  HIBERNATION_TIMEOUT_SECONDS: "300"
+  HIBERNATION_QUERY: 'sum(increase(nginx_ingress_controller_requests{exported_namespace="{{ NAMESPACE }}"}[{{ HIBERNATION_TIMEOUT_SECONDS }}s]))'
   DEBUG: "true"
   AUTOSCALER_NAMESPACE_REGEX: "^pu-[a-zA-Z-]+$"
