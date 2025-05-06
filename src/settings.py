@@ -76,7 +76,7 @@ PROMETHEUS_URL = os.environ.get(
 HIBERNATION_TIMEOUT_SECONDS = os.environ.get("HIBERNATION_TIMEOUT_SECONDS", "300")
 HIBERNATION_QUERY = os.environ.get(
     "HIBERNATION_QUERY",
-    'nginx_ingress_controller_requests{exported_namespace="{{ NAMESPACE }}"}[{{ HIBERNATION_TIMEOUT_SECONDS }}s]',
+    'sum(increase(nginx_ingress_controller_requests{exported_namespace="{{ NAMESPACE }}"}[{{ HIBERNATION_TIMEOUT_SECONDS }}s]))',
 )
 DEBUG = os.environ.get("DEBUG") == "true"
 AUTOSCALER_NAMESPACE_REGEX = os.environ.get("AUTOSCALER_NAMESPACE_REGEX", "^pu-.*$")
