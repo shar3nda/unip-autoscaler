@@ -5,6 +5,7 @@ Jinja2
 jsonref
 kubernetes
 kubernetes_asyncio
+prometheus_client
 pydantic
 pytest
 pytest-asyncio

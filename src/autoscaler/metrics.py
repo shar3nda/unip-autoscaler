@@ -5,6 +5,11 @@ from jinja2 import Environment, Template, meta
 
 from src.config.model import ScalingConfig
 from src.k8s.resolver import get_deployment_from_config, get_service_from_config
+from src.self_metrics.metrics import (
+    PROMETHEUS_ERRORS_TOTAL,
+    PROMETHEUS_REQUEST_DURATION,
+    PROMETHEUS_REQUESTS_TOTAL,
+)
 from src.settings import HIBERNATION_TIMEOUT_SECONDS, PROMETHEUS_URL
 from src.utils.logger import logger
 
@@ -69,16 +74,15 @@ def get_cpu_query(deployment_name: str, time_window=300):
     )
 
 
+@PROMETHEUS_REQUEST_DURATION.time()
 async def fetch_prometheus_metric(query: str) -> Optional[float]:
-    """
-    Функция для запроса метрики из Prometheus.
-    Ожидается, что метрика возвращает одно вещественное число.
-    """
+    PROMETHEUS_REQUESTS_TOTAL.inc()
     async with aiohttp.ClientSession() as session:
         logger.debug(f"prometheus query: {query}")
         async with session.get(PROMETHEUS_URL, params={"query": query}) as response:
             response_text = await response.text()
             if response.status != 200:
+                PROMETHEUS_ERRORS_TOTAL.inc()
                 logger.error(f"prometheus error: {response_text}")
                 return None
             logger.debug(f"prometheus response: {response_text}")
@@ -87,14 +91,15 @@ async def fetch_prometheus_metric(query: str) -> Optional[float]:
             if data["status"] == "success":
                 result = data["data"]["result"]
                 if len(result) != 1:
-                    logger.error(
-                        f"expected single metric in prometheus response, found {result}"
-                    )
+                    PROMETHEUS_ERRORS_TOTAL.inc()
+                    logger.error(f"expected single metric, found {result}")
                     return None
                 metric_value = result[0].get("value")
                 if not metric_value:
-                    logger.error(f"no metric value found in {result=}")
+                    PROMETHEUS_ERRORS_TOTAL.inc()
+                    logger.error(f"no metric value in {result=}")
                 return float(metric_value[1])
             else:
+                PROMETHEUS_ERRORS_TOTAL.inc()
                 logger.error(f"prometheus error: {data['error']}")
                 return None

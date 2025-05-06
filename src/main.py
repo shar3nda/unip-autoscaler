@@ -6,6 +6,7 @@ from typing import Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.responses import RedirectResponse
+from prometheus_client import start_http_server
 from pydantic import BaseModel
 from typing_extensions import Annotated
 from ua_parser import user_agent_parser
@@ -66,6 +67,7 @@ async def lifespan(app: FastAPI):
     logger.info("Scheduler started")
 
     watch_task = asyncio.create_task(watch_config(init_scheduler))
+    start_http_server(10254)
     try:
         yield
     finally:
