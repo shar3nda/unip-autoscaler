@@ -23,13 +23,13 @@ spec:
           envFrom:
           - configMapRef:
               name: autoscaler-config
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 10254
+              name: metrics
       imagePullSecrets:
         - name: registry-credentials
-      ports:
-        - containerPort: 8080
-          name: http
-        - containerPort: 10254
-          name: metrics
       volumes:
         - name: autoscaler-props
           configMap:
