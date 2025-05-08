@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unip-autoscaler
+  namespace: unip-system-autoscaler
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unip-autoscaler
+  template:
+    metadata:
+      labels:
+        app: unip-autoscaler
+    spec:
+      serviceAccountName: unip-autoscaler
+      containers:
+        - name: unip-autoscaler
+          image: platform-reg.stratpro.hse.ru/unip-autoscaler/unip-autoscaler:v0.0.2
+          imagePullPolicy: Always
+          envFrom:
+          - configMapRef:
+              name: autoscaler-config
+      imagePullSecrets:
+        - name: registry-credentials
+      ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 10254
+          name: metrics
+      volumes:
+        - name: autoscaler-props
+          configMap:
+            name: autoscaler-props

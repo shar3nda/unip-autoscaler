@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: unip-autoscaler
+  namespace: unip-system-autoscaler
+spec:
+  selector:
+    matchLabels:
+      app: unip-autoscaler
+  namespaceSelector:
+    matchNames:
+      - unip-system-autoscaler
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
