@@ -1,6 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
+  labels:
+    app: unip-autoscaler
   name: unip-autoscaler-ingress
   namespace: unip-system-autoscaler
   annotations:

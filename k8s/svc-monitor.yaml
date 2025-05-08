@@ -11,6 +11,6 @@ spec:
     matchNames:
       - unip-system-autoscaler
   endpoints:
-    - port: prometheus
+    - targetPort: 10254
       interval: 30s
       path: /metrics

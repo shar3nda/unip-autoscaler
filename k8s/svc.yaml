@@ -1,6 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
+  labels:
+    release: prometheus-operator
+    app: unip-autoscaler
   name: unip-autoscaler
   namespace: unip-system-autoscaler
 spec:
@@ -14,4 +17,4 @@ spec:
     - name: prometheus
       protocol: TCP
       port: 10254
-      targetPort: prometheus
+      targetPort: 10254
