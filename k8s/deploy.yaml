@@ -12,6 +12,9 @@ spec:
       app: unip-autoscaler
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10254"
       labels:
         app: unip-autoscaler
     spec:
@@ -27,7 +30,7 @@ spec:
             - containerPort: 8080
               name: http
             - containerPort: 10254
-              name: metrics
+              name: prometheus
       imagePullSecrets:
         - name: registry-credentials
       volumes:
