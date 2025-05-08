@@ -12,9 +12,6 @@ spec:
       app: unip-autoscaler
   template:
     metadata:
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "10254"
       labels:
         app: unip-autoscaler
     spec:
