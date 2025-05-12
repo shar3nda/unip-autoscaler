@@ -110,7 +110,10 @@ async def is_hibernation_needed(config: ScalingConfig) -> bool:
     return True
 
 
-async def autoscale_target(config: ScalingConfig) -> None:
+async def autoscale_target(
+    config: ScalingConfig,
+    **kwargs,  # needed to pass extra arguments with APScheduler
+) -> None:
     """Масштабирует объект в соответствии с конфигурацией."""
 
     if not NAMESPACE_REGEX.match(config.target.namespace):

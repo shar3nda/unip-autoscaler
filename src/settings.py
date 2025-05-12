@@ -59,10 +59,6 @@ AUTOSCALER_READINESS_PROBE_FAILURE_THRESHOLD = int(
         "300",
     )
 )
-AUTOSCALER_SPEC_FILE = os.environ.get(
-    "AUTOSCALER_SPEC_FILE",
-    "/etc/unip-autoscaler/spec.yaml",
-)
 AUTOSCALER_CHECK_INTERVAL = int(
     os.environ.get(
         "AUTOSCALER_CHECK_INTERVAL",

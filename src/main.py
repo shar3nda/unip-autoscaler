@@ -11,9 +11,7 @@ from pydantic import BaseModel
 from typing_extensions import Annotated
 from ua_parser import user_agent_parser
 
-from src.autoscaler.core import autoscale_target
-from src.config.loader import watch_config
-from src.config.manager import ConfigManager
+from src.autoscaler.scheduler import watch_config
 from src.k8s.actions import (
     scale_deployment,
     wakeup_ingress,
@@ -27,46 +25,23 @@ from src.network.url import (
 )
 from src.network.user_agents import USER_AGENTS_CONFIG
 from src.settings import (
-    AUTOSCALER_CHECK_INTERVAL,
     AUTOSCALER_READINESS_LIMIT,
     AUTOSCALER_READINESS_TIMEOUT,
 )
 from src.utils.logger import logger
 
 scheduler = AsyncIOScheduler()
-config_mgr = ConfigManager()
-
-
-async def init_scheduler():
-    logger.info("Initializing scheduler")
-    logger.info("Loading autoscaler configurations")
-    await config_mgr.load_configs()
-
-    scheduler.remove_all_jobs()
-
-    configs = await config_mgr.get_configs()
-
-    for cfg in configs:
-        logger.info(f"Adding job for {cfg.target}")
-        scheduler.add_job(
-            autoscale_target,
-            trigger="interval",
-            seconds=AUTOSCALER_CHECK_INTERVAL,
-            kwargs={"config": cfg},
-        )
-    logger.info(f"Scheduler initialized, {AUTOSCALER_CHECK_INTERVAL=}")
-    return
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await k8s.init_client()
 
-    await init_scheduler()
     scheduler.start()
     logger.info("Scheduler started")
 
-    watch_task = asyncio.create_task(watch_config(init_scheduler))
+    watch_task = asyncio.create_task(watch_config(scheduler=scheduler))
+
     start_http_server(10254)
     try:
         yield

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -12,9 +12,14 @@ class TargetKind(str, Enum):
 
 
 class Target(BaseModel):
-    kind: TargetKind
-    name: str
-    namespace: str
+    kind: TargetKind = Field(
+        ...,
+        description="Тип объекта масштабирования (deployment или service)",
+    )
+    name: str = Field(..., description="Имя целевого объекта масштабирования")
+    namespace: str = Field(
+        ..., description="Пространство имен, в котором находится целевой объект"
+    )
 
 
 class Operator(str, Enum):
@@ -23,14 +28,26 @@ class Operator(str, Enum):
 
 
 class Condition(BaseModel):
-    metric: str
-    operator: Operator
-    value: float
+    metric: str = Field(
+        ..., description="Имя метрики Prometheus (например, cpu, memory)"
+    )
+    operator: Operator = Field(
+        ..., description="Оператор сравнения: 'lt' (меньше) или 'gt' (больше)"
+    )
+    value: float = Field(
+        ..., description="Целевое значение метрики для выполнения условия"
+    )
 
 
 class ConditionSet(BaseModel):
-    allConditions: List[Condition] = Field(default_factory=list)
-    anyCondition: List[Condition] = Field(default_factory=list)
+    allConditions: List[Condition] = Field(
+        default_factory=list,
+        description="Список условий, все из которых должны быть выполнены (логическое И)",
+    )
+    anyCondition: List[Condition] = Field(
+        default_factory=list,
+        description="Список условий, из которых должно быть выполнено хотя бы одно (логическое ИЛИ)",
+    )
 
     @model_validator(mode="after")
     def validate_conditions(cls, v):
@@ -44,36 +61,52 @@ class ConditionSet(BaseModel):
 
 
 class Transition(BaseModel):
-    nextState: int
-    conditions: ConditionSet
+    nextState: int = Field(..., description="Количество реплик в следующем состоянии")
+    conditions: ConditionSet = Field(
+        ..., description="Набор условий, при выполнении которых произойдет переход"
+    )
 
 
 class State(BaseModel):
-    replicas: int
-    transitions: List[Transition] = Field(default_factory=list)
-
-
-class StatesConfig(BaseModel):
-    states: List[State]
+    replicas: int = Field(..., description="Количество реплик в данном состоянии")
+    transitions: List[Transition] = Field(
+        default_factory=list,
+        description="Список переходов в другие состояния из текущего",
+    )
 
 
 class PrometheusMetric(BaseModel):
-    name: str
-    query: str
+    name: str = Field(..., description="Уникальное имя пользовательской метрики")
+    query: str = Field(..., description="Запрос PromQL для получения значения метрики")
 
 
 class ScalingOptions(BaseModel):
-    cpuTimeWindow: int = 300
-    memoryTimeWindow: int = 300
-    cooldown: int
-    hibernationEnabled: bool
+    cpuTimeWindow: int = Field(
+        300, description="Период усреднения метрики CPU в секундах"
+    )
+    memoryTimeWindow: int = Field(
+        300, description="Период усреднения метрики RAM в секундах"
+    )
+    cooldown: int = Field(
+        ...,
+        description="Период (в секундах), в течение которого масштабирование отключено после предыдущего изменения",
+    )
+    hibernationEnabled: bool = Field(
+        ...,
+        description="Включение/отключение гибернации приложения",
+    )
 
 
 class ScalingConfig(BaseModel):
-    target: Target
-    states: List[State]
-    prometheusMetrics: List[PrometheusMetric] = Field(default_factory=list)
-    scalingOptions: ScalingOptions
+    target: Target = Field(..., description="Объект масштабирования")
+    states: List[State] = Field(..., description="Список состояний масштабирования")
+    prometheusMetrics: List[PrometheusMetric] = Field(
+        default_factory=list,
+        description="Список пользовательских метрик Prometheus, используемых в условиях",
+    )
+    scalingOptions: ScalingOptions = Field(
+        ..., description="Дополнительные параметры масштабирования"
+    )
 
     def get_current_state(self, current_replicas: int) -> State:
         for state in self.states:
@@ -94,3 +127,15 @@ class ScalingConfig(BaseModel):
             if metric.name == name:
                 return metric
         return None
+
+
+class ScalingConfigWithMeta(TypedDict):
+    """
+    A helper class containing custom resource metadata for a ScalingConfig.
+    """
+
+    config: ScalingConfig
+    uid: str
+    resource_version: str
+    name: str
+    namespace: str

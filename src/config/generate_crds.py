@@ -38,7 +38,7 @@ spec:
 
 pydantic_schema = ScalingConfig.model_json_schema()
 schema_clean: dict[str, Any] = json.loads(
-    json.dumps(jsonref.replace_refs(pydantic_schema), indent=4)
+    json.dumps(jsonref.replace_refs(pydantic_schema), indent=4, ensure_ascii=False)
 )
 schema_clean.pop("$defs", None)
 
@@ -48,6 +48,6 @@ crd["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["spec"] = 
 )
 
 with open(os.path.join(ROOT_DIR, "k8s", "crds.yaml"), "w") as f:
-    f.write(yaml.dump(crd))
+    f.write(yaml.dump(crd, allow_unicode=True, width=1024))
 
-print(f"CRD created at {ROOT_DIR}k8s/crds.yaml")
+print(f"CRD created at {ROOT_DIR}/k8s/crds.yaml")

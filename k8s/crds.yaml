@@ -19,12 +19,15 @@ spec:
           spec:
             properties:
               prometheusMetrics:
+                description: Список пользовательских метрик Prometheus, используемых в условиях
                 items:
                   properties:
                     name:
+                      description: Уникальное имя пользовательской метрики
                       title: Name
                       type: string
                     query:
+                      description: Запрос PromQL для получения значения метрики
                       title: Query
                       type: string
                   required:
@@ -37,17 +40,21 @@ spec:
               scalingOptions:
                 properties:
                   cooldown:
+                    description: Период (в секундах), в течение которого масштабирование отключено после предыдущего изменения
                     title: Cooldown
                     type: integer
                   cpuTimeWindow:
                     default: 300
+                    description: Период усреднения метрики CPU в секундах
                     title: Cputimewindow
                     type: integer
                   hibernationEnabled:
+                    description: Включение/отключение гибернации приложения
                     title: Hibernationenabled
                     type: boolean
                   memoryTimeWindow:
                     default: 300
+                    description: Период усреднения метрики RAM в секундах
                     title: Memorytimewindow
                     type: integer
                 required:
@@ -56,20 +63,25 @@ spec:
                 title: ScalingOptions
                 type: object
               states:
+                description: Список состояний масштабирования
                 items:
                   properties:
                     replicas:
+                      description: Количество реплик в данном состоянии
                       title: Replicas
                       type: integer
                     transitions:
+                      description: Список переходов в другие состояния из текущего
                       items:
                         properties:
                           conditions:
                             properties:
                               allConditions:
+                                description: Список условий, все из которых должны быть выполнены (логическое И)
                                 items:
                                   properties:
                                     metric:
+                                      description: Имя метрики Prometheus (например, cpu, memory)
                                       title: Metric
                                       type: string
                                     operator:
@@ -79,6 +91,7 @@ spec:
                                       title: Operator
                                       type: string
                                     value:
+                                      description: Целевое значение метрики для выполнения условия
                                       title: Value
                                       type: number
                                   required:
@@ -90,9 +103,11 @@ spec:
                                 title: Allconditions
                                 type: array
                               anyCondition:
+                                description: Список условий, из которых должно быть выполнено хотя бы одно (логическое ИЛИ)
                                 items:
                                   properties:
                                     metric:
+                                      description: Имя метрики Prometheus (например, cpu, memory)
                                       title: Metric
                                       type: string
                                     operator:
@@ -102,6 +117,7 @@ spec:
                                       title: Operator
                                       type: string
                                     value:
+                                      description: Целевое значение метрики для выполнения условия
                                       title: Value
                                       type: number
                                   required:
@@ -115,6 +131,7 @@ spec:
                             title: ConditionSet
                             type: object
                           nextState:
+                            description: Количество реплик в следующем состоянии
                             title: Nextstate
                             type: integer
                         required:
@@ -139,9 +156,11 @@ spec:
                     title: TargetKind
                     type: string
                   name:
+                    description: Имя целевого объекта масштабирования
                     title: Name
                     type: string
                   namespace:
+                    description: Пространство имён, в котором находится целевой объект
                     title: Namespace
                     type: string
                 required:
