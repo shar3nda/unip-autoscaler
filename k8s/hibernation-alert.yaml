@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hibernated-services
+  namespace: unip-system-autoscaler
+  labels:
+    release: prometheus-operator
+spec:
+  groups:
+    - name: unip-autoscaler
+      rules:
+        - alert: AutoscalerServiceHibernated
+          expr: count(kube_ingress_path{service_name=~".*-hibernated"}) by (namespace, service_name) > 0
+          for: 2m
+          labels:
+            severity: info
+            namespace: "{{ $labels.namespace }}"
+            service_name: "{{ $labels.service_name }}"
+          annotations:
+            summary: "Hibernated service detected: {{ $labels.service_name }} in {{ $labels.namespace }}"
+            hibernated_service: "{{ $labels.service_name }}"
